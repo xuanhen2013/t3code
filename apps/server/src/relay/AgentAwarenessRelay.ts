@@ -202,8 +202,6 @@ function resolveAgentActivityPublishingStartupState(input: {
   return input.publishEnabled ? "enabled" : "disabled";
 }
 
-const RELAY_AGENT_ACTIVITY_DETAIL_MAX_LENGTH = 160;
-const REDACTED_RELAY_AGENT_FAILURE_DETAIL = "The agent run failed.";
 const RELAY_AGENT_ACTIVITY_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000] as const;
 // Nothing else re-queues a thread when the network returns, so a lost terminal state is retried until it lands.
 const RELAY_AGENT_ACTIVITY_STEADY_RETRY_DELAY_MS = 60_000;
@@ -214,12 +212,18 @@ function sanitizeRelayAgentActivityState(
   if (state === null) {
     return null;
   }
-  const { detail: _detail, ...rest } = state;
-  const detail = (state.phase === "failed" ? REDACTED_RELAY_AGENT_FAILURE_DETAIL : state.detail)
-    ?.trim()
-    .slice(0, RELAY_AGENT_ACTIVITY_DETAIL_MAX_LENGTH)
-    .trim();
-  return detail ? { ...rest, detail } : rest;
+  // The relay requires nonempty titles in its notification contract.
+  return {
+    environmentId: state.environmentId,
+    threadId: state.threadId,
+    projectTitle: "T3 Code",
+    threadTitle: "Agent task",
+    phase: state.phase,
+    headline: state.headline,
+    modelTitle: "Agent",
+    updatedAt: state.updatedAt,
+    deepLink: state.deepLink,
+  };
 }
 
 function relayEnvironmentClient(token: string) {

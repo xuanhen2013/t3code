@@ -361,7 +361,7 @@ describe("AgentAwarenessRelay", () => {
       assert.isTrue(publications[1]?.url.includes(`/threads/${THREAD_ID}/`) ?? false);
       assert.equal(publications[1]?.state?.phase, "waiting_for_approval");
 
-      // A rename keeps the same request's alert time, so the phone doesn't re-alert.
+      // Local title changes are outside the notification payload.
       yield* setShell(
         shell({
           status: "completed",
@@ -370,16 +370,14 @@ describe("AgentAwarenessRelay", () => {
         }),
       );
       yield* relay.publishThread(THREAD_ID);
-      assert.equal(publications.length, 3);
-      assert.equal(publications[2]?.state?.threadTitle, "Renamed thread");
-      assert.equal(publications[2]?.state?.updatedAt, publications[1]?.state?.updatedAt);
+      assert.equal(publications.length, 2);
 
       yield* setShell(waitingChild({ pendingRuntimeRequest: null }));
       yield* relay.publishThread(CHILD_THREAD_ID);
       yield* TestClock.adjust("5 seconds");
       yield* relay.drain;
-      assert.equal(publications.length, 4);
-      assert.equal(publications[3]?.state?.phase, "completed");
+      assert.equal(publications.length, 3);
+      assert.equal(publications[2]?.state?.phase, "completed");
     }),
   );
 
@@ -646,7 +644,7 @@ describe("AgentAwarenessRelay", () => {
     }),
   );
 
-  it.effect("deduplicates state and republishes title changes", () =>
+  it.effect("publishes generic labels and skips changes to the local title", () =>
     Effect.gen(function* () {
       const { relay, currentShell, publications } = yield* makeTestRelay();
       yield* relay.publishThread(THREAD_ID);
@@ -658,8 +656,15 @@ describe("AgentAwarenessRelay", () => {
       assert.equal(publications.length, 1);
       yield* Ref.set(currentShell, shell({ title: "Renamed thread" }));
       yield* relay.publishThread(THREAD_ID);
-      assert.equal(publications.length, 2);
-      assert.equal(publications[1]?.state?.threadTitle, "Renamed thread");
+      assert.equal(publications.length, 1);
+      assert.include(publications[0]?.state, {
+        threadId: THREAD_ID,
+        projectTitle: "T3 Code",
+        threadTitle: "Agent task",
+        modelTitle: "Agent",
+        phase: "running",
+      });
+      assert.isTrue(publications[0]?.state?.deepLink.includes(THREAD_ID) ?? false);
     }),
   );
 
@@ -1214,8 +1219,8 @@ it.effect("catches up after startup without polling after success", () =>
     assert.equal(publications.length, 1);
     assert.include(publications[0]?.state, {
       threadId: THREAD_ID,
-      projectTitle: "Project",
-      threadTitle: "Thread",
+      projectTitle: "T3 Code",
+      threadTitle: "Agent task",
       phase: "running",
     });
 
