@@ -167,6 +167,13 @@ export const layerDocsRedirectRoute = HttpRouter.add(
   HttpServerResponse.redirect("/docs"),
 );
 
+// Acknowledge reports from older clients without reading or forwarding them.
+export const layerDisabledMobileTelemetryApi = HttpApiBuilder.group(
+  RelayApi,
+  "mobileTelemetry",
+  (handlers) => handlers.handle("ingest", () => Effect.void),
+);
+
 // Finish before the mobile client's 10 s timeout so request cancellation cannot discard unexported spans.
 const RELAY_REQUEST_DEADLINE_MS = 9_000;
 /** Allow body reading, upstream wait, and inbox hold; an API-sized deadline would drop held webhooks. */
@@ -1717,6 +1724,7 @@ function verifyClerkOAuthBearerToken(
       const client = createClerkClient({
         secretKey: Redacted.value(config.clerkSecretKey),
         publishableKey: config.clerkPublishableKey,
+        telemetry: { disabled: true },
       });
       const state = await client.authenticateRequest(
         new Request(config.relayIssuer, {

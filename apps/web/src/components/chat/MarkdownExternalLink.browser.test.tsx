@@ -9,6 +9,7 @@ import { MarkdownExternalLinkContent } from "./MarkdownExternalLink";
 it.each(["plain", "formatted"] as const)(
   "keeps %s long links bounded in the DOM without losing text or wrapping",
   async (kind) => {
+    const host = "workspace.example.com";
     const link = (url: string) => (
       <div className="chat-markdown w-64">
         <table>
@@ -17,7 +18,7 @@ it.each(["plain", "formatted"] as const)(
               <td>
                 <a href={url}>
                   <MarkdownExternalLinkContent
-                    host="github.com"
+                    host={host}
                     plainText={kind === "plain" ? url : null}
                   >
                     <MarkdownLinkContext value>
@@ -32,7 +33,7 @@ it.each(["plain", "formatted"] as const)(
         </table>
       </div>
     );
-    const url = (length: number) => `https://github.com/search?q=${"a".repeat(length)}`;
+    const url = (length: number) => `https://${host}/search?q=${"a".repeat(length)}`;
     await using screen = await render(link(url(128)));
     const initialElementCount = screen.container.querySelectorAll("a *").length;
 
@@ -42,6 +43,7 @@ it.each(["plain", "formatted"] as const)(
       const anchor = screen.container.querySelector("a")!;
       const table = screen.container.querySelector("table")!;
       expect(anchor.getAttribute("href")).toBe(longUrl);
+      expect(anchor.querySelector("img")).toBeNull();
       expect(anchor.textContent).toBe(longUrl + (kind === "formatted" ? " details" : ""));
       expect(anchor.querySelectorAll("*")).toHaveLength(initialElementCount);
       if (kind === "formatted")

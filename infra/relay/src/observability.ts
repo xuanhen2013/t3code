@@ -38,14 +38,6 @@ export const RelayObservability = Effect.gen(function* () {
     useRetentionPeriod: true,
   });
 
-  const workerIngestToken = yield* Axiom.ApiToken("RelayWorkerAxiomIngestToken", {
-    name: relayResourceNameForStage("t3-code-relay-otel-ingest", stage),
-    description: "Owned by Alchemy. Scoped OTLP ingest token for relay HTTP spans.",
-    datasetCapabilities: Output.map(traces.name, (dataset) => ({
-      [dataset]: { ingest: ["create" as const] },
-    })),
-  });
-
   const mobileIngestToken = yield* Axiom.ApiToken("RelayMobileAxiomIngestToken", {
     name: relayResourceNameForStage("t3-code-mobile-otel-ingest", stage),
     description: "Owned by Alchemy. Scoped OTLP ingest token for T3 Code mobile spans.",
@@ -77,16 +69,6 @@ export const RelayObservability = Effect.gen(function* () {
     retentionDays: 30,
     useRetentionPeriod: true,
   });
-  const mobileTelemetryIngestToken = yield* Axiom.ApiToken("MobileTelemetryAxiomIngestToken", {
-    name: relayResourceNameForStage("t3-code-mobile-telemetry-ingest", stage),
-    description: "Owned by Alchemy. Scoped ingest token the relay forwards mobile telemetry with.",
-    datasetCapabilities: Output.map(
-      Output.all(traces.name, mobileLogs.name, mobileMetrics.name),
-      (datasets) =>
-        Object.fromEntries(datasets.map((dataset) => [dataset, { ingest: ["create" as const] }])),
-    ),
-  });
-
   const mobileSourceMaps = yield* Cloudflare.R2.Bucket("MobileSourceMapsBucket", {
     name: mobileSourceMapsBucketName(stage),
     // R2 refuses to delete a non-empty bucket, which would half tear down every non-prod stage.
@@ -105,12 +87,10 @@ export const RelayObservability = Effect.gen(function* () {
 
   return {
     traces,
-    workerIngestToken,
     mobileIngestToken,
     clientIngestToken,
     mobileLogs,
     mobileMetrics,
-    mobileTelemetryIngestToken,
     mobileSourceMaps,
   } as const;
 });

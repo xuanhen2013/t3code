@@ -429,6 +429,7 @@ describe("relay client authentication", () => {
       expect(createClerkClient).toHaveBeenCalledWith({
         secretKey: "clerk-secret-key",
         publishableKey: "pk_test_test",
+        telemetry: { disabled: true },
       });
     }).pipe(
       Effect.ensuring(
@@ -1487,6 +1488,33 @@ describe("relay routing fallback", () => {
     }).pipe(Effect.scoped, Effect.provide(NodeCryptoLayer.layerSignature)),
   );
 });
+
+it.effect("acknowledges legacy mobile telemetry without reading the payload", () =>
+  Effect.gen(function* () {
+    const handler = yield* HttpRouter.toHttpEffect(
+      HttpApiBuilder.layer(HttpApi.make("RelayApi").add(RelayApi.groups.mobileTelemetry)).pipe(
+        Layer.provide(RelayHttpApi.layerDisabledMobileTelemetryApi),
+        Layer.provide([NodeServices.layer, NodeHttpPlatform.layer, Etag.layerWeak]),
+      ),
+    ).pipe(Effect.provideService(HttpRouter.RouterConfig, RELAY_HTTP_ROUTER_CONFIG));
+    const request = new Request(
+      "https://relay.test/v1/mobile/observe/5c1b1e20-1111-4ded-8e8f-1dcfcc8a3bf3/v1/logs",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: '{"message":"diagnostic data"}',
+      },
+    );
+    const response = yield* handler.pipe(
+      Effect.provideService(
+        HttpServerRequest.HttpServerRequest,
+        HttpServerRequest.fromWeb(request),
+      ),
+    );
+    expect(response.status).toBe(204);
+    expect(request.bodyUsed).toBe(false);
+  }).pipe(Effect.scoped),
+);
 
 describe("relay CORS", () => {
   const origin = "https://app.t3.codes";

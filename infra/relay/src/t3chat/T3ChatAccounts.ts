@@ -121,6 +121,7 @@ export const make = Effect.gen(function* () {
         const user = await createClerkClient({
           secretKey: Redacted.value(config.clerkSecretKey),
           publishableKey: config.clerkPublishableKey,
+          telemetry: { disabled: true },
         }).users.getUser(userId);
         const email = user.primaryEmailAddress?.emailAddress;
         if (!email) throw new Error("Clerk user has no primary email address.");

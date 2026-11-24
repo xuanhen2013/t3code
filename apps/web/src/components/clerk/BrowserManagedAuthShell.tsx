@@ -13,7 +13,11 @@ export default function BrowserManagedAuthShell({
   readonly children: ReactNode;
 }) {
   return (
-    <ClerkProvider appearance={clerkAppearance} publishableKey={publishableKey}>
+    <ClerkProvider
+      appearance={clerkAppearance}
+      publishableKey={publishableKey}
+      telemetry={{ disabled: true }}
+    >
       <ManagedRelayAuthProvider>{children}</ManagedRelayAuthProvider>
     </ClerkProvider>
   );
