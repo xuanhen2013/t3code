@@ -196,6 +196,8 @@ jobs:
           if [[ "$TARGET_PLATFORM" == win ]]; then
             cargo build --locked --release --manifest-path native/resource-monitor/Cargo.toml --target "$RUST_TARGET"
             export T3CODE_DESKTOP_REUSE_RESOURCE_MONITOR=true
+            # Official cross-builds omit this cache. Keep the native build within the same file budget.
+            export T3CODE_DESKTOP_SKIP_SERVER_COMPILE_CACHE=true
             args+=(--wsl-runtime "wsl-runtime/t3-$BUILD_VERSION-linux-x64.tar.gz")
           fi
           vp run dist:desktop:artifact "${args[@]}"
