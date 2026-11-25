@@ -237,7 +237,6 @@ const makeHarnessFor = Effect.fnUntraced(function* (
             return true;
           }),
     flush: Effect.void,
-    recordOwners: () => Effect.void,
   });
   const auth = yield* makeCodexChatGptAuth({
     instanceId,

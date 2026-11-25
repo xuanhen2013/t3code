@@ -215,8 +215,6 @@ await NodeFSP.writeFile(NodePath.join(installed, "package.json"), '{"type":"modu
 for (const file of [
   "runHook.ts",
   "remoteCache.ts",
-  "flush.ts",
-  "telemetry.ts",
   "nativeHook.js",
   "nativeRunHook.js",
   "preload.mjs",
@@ -244,6 +242,8 @@ for (const [path, { original }] of targets) {
   await NodeFSP.rm(NodePath.join(NodePath.dirname(path), "run-hook.js"), { force: true });
 }
 for (const file of [
+  "flush.ts",
+  "telemetry.ts",
   "nativeHook.ts",
   "launcher-telemetry.ts",
   "launcherTelemetry.ts",
