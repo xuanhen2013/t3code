@@ -15,6 +15,10 @@ module.exports = async ({ appOutDir, electronPlatformName, arch, packager }) => 
     console.log("[server-compile-cache] Skipping untrusted bundle");
     return;
   }
+  if (process.env.T3CODE_DESKTOP_SKIP_SERVER_COMPILE_CACHE === "true") {
+    console.log("[server-compile-cache] Skipping by build configuration");
+    return;
+  }
   const targetArch = ["ia32", "x64", "armv7l", "arm64", "universal"][arch];
   const runsWithRosetta =
     electronPlatformName === "darwin" &&
