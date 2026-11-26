@@ -3,7 +3,7 @@
 This build disables product usage uploads, built-in Relay connection trace exports, and mobile
 crash and startup reporting.
 
-## Agent feedback
+The server sends usage events to `ingest.t3.codes` under a hashed random install ID (plus a hashed T3 Connect account ID when signed in, and random client device IDs). Events contain provider, catalog model name (non-catalog models report as custom), reasoning effort, permission mode, turn/request outcome, duration, release channel, and token counts.
 
 Feedback prepared with **Agent feedback** or `t3 feedback` stays on your machine because this
 build disables the upload used by that feature. Use `t3 feedback list` to inspect saved reports.
@@ -14,24 +14,8 @@ When **Publish agent activity** is enabled on a host, it sends project and threa
 names, activity status, and environment and thread identifiers to the T3 Connect relay for
 [mobile notifications and live activities](./mobile-notifications.md). Publish agent activity controls these updates.
 
-To stop publishing, turn off **Publish agent activity** under **Settings > Sharing & access** on
-the host. Turning off notifications on a phone controls that phone's alerts, not the host's
-publishing setting.
+## Export diagnostics to your own OpenTelemetry receiver
 
-## Export diagnostics to your own receiver
+Open **Settings → Maintenance → Diagnostics** (per environment) and enter OTLP HTTP endpoints (e.g. `http://localhost:4318/v1/traces`), save, and restart the server. Use **Test** to verify connectivity.
 
-To send traces, metrics, or logs to an OpenTelemetry receiver, open
-**Settings > Maintenance > Diagnostics**, select an environment, and enter each signal's OTLP HTTP
-endpoint under **OpenTelemetry export** (for example `http://localhost:4318/v1/traces`). Save, then
-restart that environment's server. The receiver must be reachable from the server's machine.
-**Test** sends an empty export from the server to check an endpoint before or after you save it;
-saved endpoints are checked when the section opens. Checks send authentication headers only to
-the signal's currently running endpoint and do not follow redirects. To check a new endpoint
-that requires authentication, save it and restart the server first.
-
-`T3CODE_OTLP_*_URL` and standard `OTEL_EXPORTER_OTLP_*` environment variables override the saved
-settings. An overridden signal shows **Set by environment** and names the variable that set it, and its
-**Test** checks the running endpoint instead of the field. For endpoints saved here or set with `T3CODE_OTLP_*_URL`, set `T3CODE_OTLP_HEADERS` for
-receivers that need authentication and `T3CODE_OTLP_PROTOCOL=http/protobuf` for receivers that do
-not accept JSON. An endpoint set with `OTEL_EXPORTER_OTLP_*` takes its headers and protocol from
-`OTEL_EXPORTER_OTLP_HEADERS` and `OTEL_EXPORTER_OTLP_PROTOCOL` instead.
+`T3CODE_OTLP_*_URL` and standard `OTEL_EXPORTER_OTLP_*` env vars override saved settings (use `T3CODE_OTLP_HEADERS` / `T3CODE_OTLP_PROTOCOL=http/protobuf` or the standard `OTEL_EXPORTER_OTLP_*` equivalents for auth and protobuf).
