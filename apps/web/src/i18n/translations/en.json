@@ -13020,5 +13020,15 @@
       "v": "v"
     },
     " more in Linked items"
-  ]
+  ],
+  "bf2453fe8e4297d2": "{count} tokens",
+  "42ee26987b45661a": "{count} output tokens",
+  "373b902767887731": "Main agent input and output tokens for this provider turn",
+  "ec9955b3ec685da6": "Output tokens reported by the provider",
+  "1bb782a0e81f8165": "Output tokens estimated from this reply's text",
+  "732a58bc55cebfef": "Average output rate across the provider turn, including time spent waiting or using tools",
+  "aeda9e3477dd5410": "Estimated average output rate for this reply's text",
+  "5755c03c64f9f184": "{rate} tok/s",
+  "deecdab418b51f6b": "{rate} tok/s avg",
+  "da7ccb37e764c426": "Estimated from text received during the latest sample"
 }

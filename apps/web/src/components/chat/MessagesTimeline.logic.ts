@@ -627,6 +627,7 @@ type MessagesTimelineRowContent =
       message: ChatMessage;
       projectedItem?: OrchestrationV2ProjectedTurnItem;
       showAssistantMeta: boolean;
+      showLiveAssistantMetrics?: boolean;
       suppressEmptyResponse?: boolean;
       showAssistantCopyButton: boolean;
       assistantCopyStreaming: boolean;
@@ -2302,10 +2303,10 @@ export function deriveMessagesTimelineRows(
       timelineEntry.message.role === "assistant" &&
       runIdIsActiveResponse(timelineEntry.message.runId);
 
-    const showAssistantMeta =
+    const isTerminalAssistant =
       timelineEntry.message.role === "assistant" &&
-      terminalAssistantMessageIds.has(timelineEntry.message.id) &&
-      !assistantResponseStillInProgress;
+      terminalAssistantMessageIds.has(timelineEntry.message.id);
+    const showAssistantMeta = isTerminalAssistant && !assistantResponseStillInProgress;
 
     nextRows.push({
       kind: "message",
@@ -2316,6 +2317,9 @@ export function deriveMessagesTimelineRows(
         ? {}
         : { projectedItem: timelineEntry.projectedItem }),
       showAssistantMeta,
+      ...(isTerminalAssistant && assistantResponseStillInProgress
+        ? { showLiveAssistantMetrics: true }
+        : {}),
       suppressEmptyResponse:
         timelineEntry.message.role === "assistant" &&
         timelineEntry.message.runId != null &&
@@ -2908,6 +2912,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.message === bm.message &&
         a.projectedItem === bm.projectedItem &&
         a.showAssistantMeta === bm.showAssistantMeta &&
+        a.showLiveAssistantMetrics === bm.showLiveAssistantMetrics &&
         a.suppressEmptyResponse === bm.suppressEmptyResponse &&
         a.showAssistantCopyButton === bm.showAssistantCopyButton &&
         a.assistantCopyStreaming === bm.assistantCopyStreaming &&

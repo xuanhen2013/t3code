@@ -24,6 +24,7 @@ import { useV2ItemSupport } from "../../state/v2ItemSupport";
 import { TimelineRowCtx, TimelineRowActivityCtx, type TimelineRow } from "./timelineRowContext";
 import { MESSAGE_HEADING_LEVEL, MessageAuthorHeading } from "./TimelineRowParts";
 import { SharedTooltipTrigger } from "../ui/shared-tooltip";
+import { AssistantTurnMetrics } from "./AssistantTurnMetrics";
 
 export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
@@ -75,11 +76,13 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
             <AssistantStatusBadge status="interrupted" />
           </div>
         ) : null}
-        {row.showAssistantMeta ? (
+        {row.showAssistantMeta || row.showLiveAssistantMetrics ? (
           <AssistantMessageMeta
             className="mt-1.5"
             projectedItem={row.projectedItem}
             message={row.message}
+            text={text}
+            showActions={row.showAssistantMeta}
             showCopyButton={row.showAssistantCopyButton}
             copyStreaming={row.assistantCopyStreaming}
           />
@@ -185,6 +188,7 @@ export function AssistantMetaTimelineRow({
         className="mt-0.5"
         projectedItem={row.projectedItem}
         message={row.message}
+        text={row.message.text}
         showCopyButton={row.showAssistantCopyButton}
         copyStreaming={row.assistantCopyStreaming}
         alwaysVisible
@@ -197,6 +201,8 @@ function AssistantMessageMeta({
   className,
   projectedItem,
   message,
+  text,
+  showActions = true,
   showCopyButton,
   copyStreaming,
   alwaysVisible = false,
@@ -204,45 +210,67 @@ function AssistantMessageMeta({
   className?: string;
   projectedItem?: Extract<TimelineRow, { kind: "message" }>["projectedItem"];
   message: ChatMessage;
+  text: string;
+  showActions?: boolean;
   showCopyButton: boolean;
   copyStreaming: boolean;
   alwaysVisible?: boolean;
 }) {
   const ctx = use(TimelineRowCtx);
   const m = useMessages();
+  const providerTurnId = projectedItem?.item.providerTurnId;
+  const providerTurn =
+    providerTurnId == null ? undefined : ctx.providerTurnsById.get(providerTurnId);
 
   return (
-    <div
-      className={cn(
-        "flex items-center gap-2 text-xs tabular-nums transition-opacity duration-200",
-        alwaysVisible
-          ? "opacity-100"
-          : "opacity-0 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover/assistant:opacity-100",
-        className,
-      )}
-    >
-      {projectedItem && projectedItem.item.status !== "completed" ? (
-        <AssistantStatusBadge status={projectedItem.item.status} />
-      ) : null}
-      <AssistantCopyButton
-        message={message}
-        showCopyButton={showCopyButton}
-        streaming={copyStreaming}
-      />
-      {projectedItem?.item.type === "assistant_message" ? (
-        <AssistantForkButton projectedItem={projectedItem} />
-      ) : null}
-      {!message.streaming && projectedItem ? (
-        <AssistantReplyButton message={message} itemId={projectedItem.sourceItemId} />
-      ) : null}
-      {!message.streaming && (
-        <SharedTooltipTrigger
-          render={<p className="text-muted-foreground text-xs tabular-nums" />}
-          label={formatChatTimestampTooltip(message.updatedAt, ctx.timestampFormat, m)}
+    <div className={cn("flex items-center gap-2 text-xs tabular-nums", className)}>
+      {showActions ? (
+        <div
+          className={cn(
+            "flex min-w-0 items-center gap-2 transition-opacity duration-200",
+            alwaysVisible
+              ? "opacity-100"
+              : "opacity-0 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover/assistant:opacity-100",
+          )}
         >
-          {formatDayAwareTimestamp(message.updatedAt, ctx.timestampFormat, undefined, undefined, m)}
-        </SharedTooltipTrigger>
-      )}
+          {projectedItem && projectedItem.item.status !== "completed" ? (
+            <AssistantStatusBadge status={projectedItem.item.status} />
+          ) : null}
+          <AssistantCopyButton
+            message={message}
+            showCopyButton={showCopyButton}
+            streaming={copyStreaming}
+          />
+          {projectedItem?.item.type === "assistant_message" ? (
+            <AssistantForkButton projectedItem={projectedItem} />
+          ) : null}
+          {!message.streaming && projectedItem ? (
+            <AssistantReplyButton message={message} itemId={projectedItem.sourceItemId} />
+          ) : null}
+          {!message.streaming && (
+            <SharedTooltipTrigger
+              render={<p className="truncate text-muted-foreground" />}
+              label={formatChatTimestampTooltip(message.updatedAt, ctx.timestampFormat, m)}
+            >
+              {formatDayAwareTimestamp(
+                message.updatedAt,
+                ctx.timestampFormat,
+                undefined,
+                undefined,
+                m,
+              )}
+            </SharedTooltipTrigger>
+          )}
+        </div>
+      ) : null}
+      <AssistantTurnMetrics
+        key={message.id}
+        text={text}
+        streaming={message.streaming}
+        pending={copyStreaming}
+        item={projectedItem?.item}
+        providerTurn={providerTurn}
+      />
     </div>
   );
 }

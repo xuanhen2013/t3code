@@ -13011,5 +13011,15 @@
       "v": "v"
     },
     " mais em Itens vinculados"
-  ]
+  ],
+  "bf2453fe8e4297d2": "{count} tokens",
+  "42ee26987b45661a": "{count} tokens de saída",
+  "373b902767887731": "Tokens de entrada e saída do agente principal neste turno do provedor",
+  "ec9955b3ec685da6": "Tokens de saída informados pelo provedor",
+  "1bb782a0e81f8165": "Tokens de saída estimados a partir do texto desta resposta",
+  "732a58bc55cebfef": "Taxa média de saída no turno do provedor, incluindo espera e uso de ferramentas",
+  "aeda9e3477dd5410": "Taxa média de saída estimada para o texto desta resposta",
+  "5755c03c64f9f184": "{rate} tok/s",
+  "deecdab418b51f6b": "{rate} tok/s em média",
+  "da7ccb37e764c426": "Estimativa com base no texto recebido no último intervalo"
 }

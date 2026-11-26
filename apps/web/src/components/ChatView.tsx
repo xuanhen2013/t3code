@@ -3714,6 +3714,7 @@ export default function ChatView(props: ChatViewProps) {
                   footer={timelineFooter}
                   listRef={legendListRef}
                   runs={serverProjection?.runs ?? []}
+                  providerTurns={serverProjection?.providerTurns}
                   latestRun={activeActivityRun}
                   usageLimitRunId={usageLimitRunId}
                   announcedRun={announcedRun(activeActivityRun, serverProjection?.runs ?? [])}

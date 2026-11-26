@@ -13011,5 +13011,15 @@
       "v": "v"
     },
     " weitere unter Verknüpfte Elemente"
-  ]
+  ],
+  "bf2453fe8e4297d2": "{count} Token",
+  "42ee26987b45661a": "{count} Ausgabetoken",
+  "373b902767887731": "Ein- und Ausgabetoken des Hauptagenten für diesen Durchlauf",
+  "ec9955b3ec685da6": "Vom Anbieter gemeldete Ausgabetoken",
+  "1bb782a0e81f8165": "Aus dem Antworttext geschätzte Ausgabetoken",
+  "732a58bc55cebfef": "Durchschnittliche Ausgaberate für diesen Durchlauf inklusive Wartezeit und Werkzeugnutzung",
+  "aeda9e3477dd5410": "Geschätzte durchschnittliche Ausgaberate für diesen Antworttext",
+  "5755c03c64f9f184": "{rate} tok/s",
+  "deecdab418b51f6b": "Ø {rate} tok/s",
+  "da7ccb37e764c426": "Geschätzt anhand des zuletzt empfangenen Textes"
 }

@@ -13018,5 +13018,15 @@
       "v": "v"
     },
     " till i Länkade objekt"
-  ]
+  ],
+  "bf2453fe8e4297d2": "{count} token",
+  "42ee26987b45661a": "{count} utdatatoken",
+  "373b902767887731": "Huvudagentens in- och utdatatoken för den här turen hos leverantören",
+  "ec9955b3ec685da6": "Utdatatoken som leverantören rapporterade",
+  "1bb782a0e81f8165": "Uppskattat antal utdatatoken utifrån svarets text",
+  "732a58bc55cebfef": "Genomsnittlig utdatahastighet för leverantörens tur, inklusive väntan och verktygsanvändning",
+  "aeda9e3477dd5410": "Uppskattad genomsnittlig utdatahastighet för texten i det här svaret",
+  "5755c03c64f9f184": "{rate} tok/s",
+  "deecdab418b51f6b": "{rate} tok/s i snitt",
+  "da7ccb37e764c426": "Uppskattat utifrån texten som togs emot under det senaste intervallet"
 }

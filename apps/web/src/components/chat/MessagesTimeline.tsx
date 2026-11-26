@@ -17,6 +17,7 @@ import {
   type AssistantCitation,
   type EnvironmentId,
   type MessageId,
+  type OrchestrationV2ProviderTurn,
   type OrchestrationV2TurnItem,
   type RunAttemptId,
   type ServerProviderSkill,
@@ -326,6 +327,7 @@ interface MessagesTimelineProps {
   workspaceRoot: string | undefined;
   skills?: ReadonlyArray<ServerProviderSkill>;
   runs: ReadonlyArray<HandoffTimelineRun>;
+  providerTurns?: ReadonlyArray<OrchestrationV2ProviderTurn> | undefined;
   anchorMessageId: MessageId | null;
   onAnchorReady: (messageId: MessageId, anchorIndex: number) => void;
   onAnchorSizeChanged: (messageId: MessageId, size: number) => void;
@@ -429,6 +431,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   workspaceRoot,
   skills = EMPTY_TIMELINE_SKILLS,
   runs: runsProp,
+  providerTurns,
   anchorMessageId,
   onAnchorReady,
   onAnchorSizeChanged,
@@ -1144,6 +1147,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     workspaceRoot,
     skills,
     runs,
+    providerTurnsById: new Map(providerTurns?.map((turn) => [turn.id, turn])),
     activeThreadEnvironmentId,
     onRevertToTurnCount,
     onRunShellCommand,
@@ -1686,7 +1690,8 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
               ? "pb-1"
               : (row.kind === "message" &&
                     row.message.role === "assistant" &&
-                    !row.showAssistantMeta) ||
+                    !row.showAssistantMeta &&
+                    !row.showLiveAssistantMetrics) ||
                   row.kind === "worktree-setup" ||
                   row.kind === "event" ||
                   row.kind === "attempt-fold" ||

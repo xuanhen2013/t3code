@@ -9,12 +9,15 @@ import {
   NodeId,
   ProviderDriverKind,
   ProviderInstanceId,
+  ProviderThreadId,
+  ProviderTurnId,
   RunAttemptId,
   RunId,
   RuntimeRequestId,
   TurnItemId,
   ScheduledTaskId,
   ThreadId,
+  type OrchestrationV2ProviderTurn,
   type OrchestrationV2Subagent,
 } from "@t3tools/contracts";
 import { type LegendListRef } from "@legendapp/list/react";
@@ -2527,6 +2530,84 @@ describe("compact reasoning math", () => {
     });
     expect(screen.text()).not.toContain("\uFFFD");
   });
+});
+
+it("keeps turn metrics in the reply footer from streaming to reported usage", async () => {
+  setup();
+  const fixture = makeStreamingTimelineFixture();
+  const assistant = fixture.visibleTurnItems[5]!;
+  if (assistant.item.type !== "assistant_message") throw new Error("Expected fixture reply");
+  const item = assistant.item;
+  const providerTurn: OrchestrationV2ProviderTurn = {
+    id: ProviderTurnId.make("live-provider-turn"),
+    providerThreadId: ProviderThreadId.make("metrics-provider-thread"),
+    nodeId: NodeId.make("metrics-root"),
+    runAttemptId: null,
+    nativeTurnRef: null,
+    ordinal: 1,
+    status: "completed",
+    startedAt: DateTime.makeUnsafe(fixture.time(5)),
+    completedAt: DateTime.makeUnsafe(fixture.time(15)),
+    turnTokenUsage: {
+      usageScope: "main_agent",
+      usageStatus: "complete",
+      hasSubagents: false,
+      inputTokens: 500,
+      outputTokens: 120,
+    },
+  };
+  const props = baseProps();
+  const ui = (replyText?: string, streaming = false) => (
+    <MessagesTimeline
+      {...props}
+      isWorking={streaming}
+      runningRunId={streaming ? fixture.runId : null}
+      providerTurns={streaming ? [] : [providerTurn]}
+      timelineEntries={deriveTimelineEntriesFromVisibleTurnItems({
+        visibleTurnItems: [
+          ...fixture.visibleTurnItems.slice(0, 5),
+          ...(replyText === undefined
+            ? []
+            : [
+                {
+                  ...assistant,
+                  item: {
+                    ...item,
+                    providerTurnId: providerTurn.id,
+                    text: replyText,
+                    streaming,
+                    status: streaming ? ("running" as const) : ("completed" as const),
+                  },
+                },
+              ]),
+        ],
+        optimisticMessages: [],
+      })}
+    />
+  );
+  await using screen = await renderElement(ui());
+  const oldCount = screen.getByText("≈ 1 output tokens", { exact: true });
+  await expect.element(oldCount).toBeVisible();
+  expect(oldCount.element().parentElement?.textContent).toContain("– tok/s");
+
+  using _timers = fakeTimers();
+  await screen.rerender(ui("Text", true));
+  const reply = `Text${"字".repeat(40)}`;
+  await screen.rerender(ui(reply, true));
+  await act(() => vi.advanceTimersByTime(1_500));
+  await expect.element(screen.getByText("≈ 20 tok/s", { exact: true })).toBeVisible();
+
+  await screen.rerender(ui(reply));
+  const count = screen.getByText("620 tokens", { exact: true });
+  await expect.element(count).toBeVisible();
+  await expect.element(screen.getByText("12 tok/s avg", { exact: true })).toBeVisible();
+  expect(count.element().checkVisibility({ opacityProperty: true })).toBe(true);
+  const replyRow = screen.container.querySelector('[data-message-id="live-assistant"]')!;
+  const copy = replyRow.querySelector('[aria-label="Copy message"]')!;
+  const copyRect = copy.getBoundingClientRect();
+  const countRect = count.element().getBoundingClientRect();
+  expect(countRect.left).toBeGreaterThan(copyRect.right);
+  expect(countRect.top + countRect.height / 2).toBeCloseTo(copyRect.top + copyRect.height / 2);
 });
 
 it("renders automatic compaction as one live divider that finishes with its reason and token delta", async () => {
