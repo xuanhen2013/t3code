@@ -306,20 +306,19 @@ describe("installRelayTelemetryEnabled", () => {
       return { beforeDiscovery, afterDiscovery: ask() };
     }).pipe(Effect.scoped);
 
-  it.effect("reads the desktop host opt-out before returning the renderer policy", () =>
+  it.effect("reports official tracing disabled even before the desktop shell is read", () =>
     Effect.gen(function* () {
-      assert.deepEqual(yield* relayTelemetryEnabled({ T3CODE_TELEMETRY_ENABLED: "false" }), {
+      assert.deepEqual(yield* relayTelemetryEnabled({ T3CODE_TELEMETRY_ENABLED: "true" }), {
         beforeDiscovery: false,
         afterDiscovery: false,
       });
-      // Undecided until the login shell is read, so the renderer asks again instead of opting out.
       assert.deepEqual(yield* relayTelemetryEnabled({}), {
-        beforeDiscovery: null,
-        afterDiscovery: true,
+        beforeDiscovery: false,
+        afterDiscovery: false,
       });
       assert.deepEqual(
-        yield* relayTelemetryEnabled({}, undefined, { T3CODE_TELEMETRY_ENABLED: "false" }),
-        { beforeDiscovery: null, afterDiscovery: false },
+        yield* relayTelemetryEnabled({}, undefined, { T3CODE_TELEMETRY_ENABLED: "true" }),
+        { beforeDiscovery: false, afterDiscovery: false },
       );
     }),
   );
@@ -335,7 +334,7 @@ describe("installRelayTelemetryEnabled", () => {
         return (yield* relayTelemetryEnabled(...args)).afterDiscovery;
       };
       assert.isFalse(yield* after({}, policy({ telemetry: false })));
-      assert.isTrue(yield* after({}, policy({ webhookTasks: false })));
+      assert.isFalse(yield* after({}, policy({ webhookTasks: false })));
       // A policy that cannot be read fails closed.
       assert.isFalse(
         yield* after({}, new ManagedPolicyFileError({ path: "/test", reason: "bad JSON" })),

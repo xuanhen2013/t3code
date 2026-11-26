@@ -1,7 +1,8 @@
 # Telemetry and diagnostics
 
 This build disables product usage uploads, built-in Relay connection trace exports, and mobile
-crash and startup reporting.
+crash and startup reporting. Environment variables that enable T3 telemetry do not enable those
+uploads in this build.
 
 The server sends usage events to `ingest.t3.codes` under a hashed random install ID (plus a hashed T3 Connect account ID when signed in, and random client device IDs). Events contain provider, catalog model name (non-catalog models report as custom), reasoning effort, permission mode, turn/request outcome, duration, release channel, and token counts.
 

@@ -386,81 +386,34 @@ describe("OtelEnvironment", () => {
   });
 });
 
-describe("isCiEnvironment", () => {
-  it("treats a set CI variable as CI, except empty, false, and 0", () => {
-    assert.isFalse(OtelEnvironment.isCiEnvironment({}));
-    assert.isTrue(OtelEnvironment.isCiEnvironment({ CI: "1" }));
-    assert.isTrue(OtelEnvironment.isCiEnvironment({ TF_BUILD: "True" }));
-    assert.isTrue(OtelEnvironment.isCiEnvironment({ BITBUCKET_BUILD_NUMBER: "42" }));
-    for (const value of ["", " ", "false", "FALSE", "0"]) {
-      assert.isFalse(OtelEnvironment.isCiEnvironment({ CI: value }), `CI=${value}`);
-    }
-    assert.isTrue(OtelEnvironment.isCiEnvironment({ CI: "false", GITLAB_CI: "true" }));
-  });
-});
-
 describe("isRelayTracingEnabled", () => {
-  it("turns off for DO_NOT_TRACK, even when T3 telemetry is on", () => {
-    assert.isFalse(OtelEnvironment.isRelayTracingEnabled({ DO_NOT_TRACK: "1" }));
-    assert.isFalse(
-      OtelEnvironment.isRelayTracingEnabled({
-        DO_NOT_TRACK: "true",
-        T3CODE_TELEMETRY_ENABLED: "1",
-      }),
-    );
-    assert.isTrue(OtelEnvironment.isRelayTracingEnabled({ DO_NOT_TRACK: "0" }));
-    assert.isTrue(OtelEnvironment.isRelayTracingEnabled({ DO_NOT_TRACK: "" }));
+  it("keeps official relay tracing disabled by default", () => {
+    assert.isFalse(OtelEnvironment.isRelayTracingEnabled({}));
   });
 
-  it("defaults on and respects the T3CODE SDK override of the standard kill switch", () => {
-    assert.isTrue(OtelEnvironment.isRelayTracingEnabled({}));
-    assert.isFalse(OtelEnvironment.isRelayTracingEnabled({ OTEL_SDK_DISABLED: "true" }));
-    assert.isTrue(
-      OtelEnvironment.isRelayTracingEnabled({
-        OTEL_SDK_DISABLED: "true",
-        T3CODE_OTEL_SDK_DISABLED: "false",
+  it.effect(
+    "disables official tracing with explicit opt-in while honoring user-configured OTLP",
+    () =>
+      Effect.gen(function* () {
+        const env = {
+          T3CODE_TELEMETRY_ENABLED: "true",
+          T3CODE_OTEL_SDK_DISABLED: "false",
+          OTEL_SDK_DISABLED: "true",
+          OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://user.example.test/v1/traces",
+        };
+        assert.isFalse(OtelEnvironment.isRelayTracingEnabled(env));
+
+        const otel = yield* load(env);
+        assert.isFalse(otel.disabled);
+        assert.deepStrictEqual(
+          otel.traces,
+          OtelEnvironment.OtelSignal.Export({
+            url: env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+            variable: "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+            protocol: "http/protobuf",
+            headers: undefined,
+          }),
+        );
       }),
-    );
-    assert.isFalse(
-      OtelEnvironment.isRelayTracingEnabled({
-        OTEL_SDK_DISABLED: "false",
-        T3CODE_OTEL_SDK_DISABLED: "true",
-      }),
-    );
-  });
-
-  it("is off on a CI runner unless T3CODE_TELEMETRY_ENABLED turns it on", () => {
-    assert.isFalse(OtelEnvironment.isRelayTracingEnabled({ CI: "true" }));
-    assert.isFalse(OtelEnvironment.isRelayTracingEnabled({ JENKINS_URL: "https://ci.example" }));
-    assert.isTrue(
-      OtelEnvironment.isRelayTracingEnabled({ CI: "true", T3CODE_TELEMETRY_ENABLED: "true" }),
-    );
-    assert.isFalse(
-      OtelEnvironment.isRelayTracingEnabled({ CI: "true", T3CODE_TELEMETRY_ENABLED: "false" }),
-    );
-  });
-
-  it.effect("product opt-out beats SDK enable without disabling user-configured tracing", () =>
-    Effect.gen(function* () {
-      const env = {
-        T3CODE_TELEMETRY_ENABLED: "false",
-        T3CODE_OTEL_SDK_DISABLED: "false",
-        OTEL_SDK_DISABLED: "true",
-        OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://user.example.test/v1/traces",
-      };
-      assert.isFalse(OtelEnvironment.isRelayTracingEnabled(env));
-
-      const otel = yield* load(env);
-      assert.isFalse(otel.disabled);
-      assert.deepStrictEqual(
-        otel.traces,
-        OtelEnvironment.OtelSignal.Export({
-          url: env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-          variable: "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-          protocol: "http/protobuf",
-          headers: undefined,
-        }),
-      );
-    }),
   );
 });
