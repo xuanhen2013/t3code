@@ -13,6 +13,7 @@ import {
   NodeRuntimeUnavailableError,
   nodeRuntimeUnavailableMessage,
 } from "@t3tools/shared/nodeRuntime";
+import { compareSemverVersions } from "@t3tools/shared/semver";
 import * as Digest from "effect/crypto/Digest";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Deferred from "effect/Deferred";
@@ -70,6 +71,7 @@ import {
 import { makeAcpNativeLoggerFactory } from "@t3tools/provider-acp/server/nativeLogging";
 import { ProviderDriverError } from "../Errors.ts";
 import { makeAntigravityProvider } from "../AntigravityProvider.ts";
+import { makeAntigravityUsageProbe } from "../antigravityUsageLimits.ts";
 import * as ProviderEventLoggers from "@t3tools/provider-core/server/ProviderEventLoggers";
 import * as ModelCatalog from "@t3tools/provider-core/server/ModelCatalog";
 import {
@@ -95,6 +97,7 @@ const encodeRememberedRuntimeModes = Schema.encodeSync(RememberedRuntimeModes);
 const REFRESH_FAILED =
   "Could not refresh Antigravity models. The previous model list is unchanged.";
 const PYTHON_SOCKS_REQUIRED = "python-socks is required to use a SOCKS proxy";
+const MINIMUM_QUOTA_CLI_VERSION = "1.5.16";
 
 // Keep upstream diagnostics in cause; only recognized, fixed text reaches clients.
 function refreshFailureDetail(cause: unknown) {
@@ -523,7 +526,10 @@ export const AntigravityDriver: ProviderDriver<
     const authFlow: AntigravityAuth = yield* makeAntigravityAuth({
       instanceId,
       makeRuntime: makeDisposableRuntime,
-      onAuthenticated: publishCatalog,
+      onAuthenticated: (started, runtime) =>
+        Effect.suspend(() => provider.onSignedIn).pipe(
+          Effect.andThen(publishCatalog(started, runtime)),
+        ),
       onSignedOut: Effect.suspend(() => provider.onSignedOut),
       usesBrowser: antigravityAuthUsesBrowser(auth.authMethod),
       codeLogin,
@@ -568,10 +574,51 @@ export const AntigravityDriver: ProviderDriver<
       };
     });
 
+    const readQuota = Effect.fn("AntigravityDriver.readQuota")(function* () {
+      const { executable, spawn } = yield* prepareSpawn(profileDirectory, processEnvironment);
+      if (
+        executable.version === null ||
+        compareSemverVersions(executable.version, MINIMUM_QUOTA_CLI_VERSION) < 0
+      ) {
+        return undefined;
+      }
+      // The standalone CLI uses underscore flags; the ACP subcommand uses hyphens.
+      return yield* spawner.string(
+        ChildProcess.make(
+          spawn.command,
+          [
+            "--gemini_dir",
+            profileDirectory,
+            "--app_data_dir",
+            "antigravity-acp",
+            "-p",
+            "/usage",
+            "--output-format",
+            "json",
+            "--print-timeout",
+            "12s",
+          ],
+          {
+            cwd: profileDirectory,
+            env: { ...spawn.env, AGY_CLI_FORCE_FILE_TOKEN_STORAGE: "1" },
+            extendEnv: false,
+            stdin: "ignore",
+            shell: false,
+          },
+        ),
+      );
+    }, Effect.scoped);
+    const usage = yield* makeAntigravityUsageProbe({
+      profileDirectory,
+      authMethod: auth.authMethod,
+      readQuota: readQuota(),
+    });
     const provider = yield* makeAntigravityProvider(settings, {
       environment: processEnvironment,
       stampIdentity: classifyModels,
       probe,
+      probeUsage: usage.probe,
+      clearUsage: usage.clear,
       auth: { type: auth.authMethod, label: antigravityAuthLabel(auth.authMethod) },
       ...(rememberedRuntimeModes ? { rememberedRuntimeModes } : {}),
       rememberRuntimeModes: (modes) =>

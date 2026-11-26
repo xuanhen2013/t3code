@@ -24,6 +24,14 @@ import { isLocalLoopbackHost, isWildcardHost } from "./hostClassification.ts";
 
 const MINUTE = 60_000;
 
+function antigravityQuotaFamily(id: string) {
+  if (/^(3p|claude|gpt)-/.test(id)) return "shared";
+  if (!id.startsWith("gemini-")) return undefined;
+  if (id.includes("-argon")) return "argon";
+  if (id.includes("-carbon")) return "carbon";
+  return "gemini";
+}
+
 export function exhaustedUsageWindow(
   provider: ServerProvider | undefined,
   now: number,
@@ -47,6 +55,12 @@ export function exhaustedUsageWindow(
       const api = exhausted.find((window) => window.id === "apiPercentUsed");
       const auto = exhausted.find((window) => window.id === "autoPercentUsed");
       return /^(auto|default|grok|composer)/.test(model) ? auto && api : api;
+    }
+    case "antigravity": {
+      const family = antigravityQuotaFamily(model.slice(model.lastIndexOf("/") + 1));
+      return family === undefined
+        ? undefined
+        : exhausted.find((window) => antigravityQuotaFamily(window.id) === family);
     }
     case "codex": {
       // Seat-based plans spend credits only past their plan windows, so the credit cap blocks only plans without them.
@@ -542,6 +556,14 @@ function hasDuplicateCursorTotal(pool: LimitPool): boolean {
 }
 
 export function displayLimitWindows(pool: LimitPool) {
+  if (pool.driver === "antigravity") {
+    return [...pool.windows].sort(
+      (left, right) =>
+        Number(!left.id.startsWith("gemini-")) - Number(!right.id.startsWith("gemini-")) ||
+        left.id.replace(/-(5h|weekly)$/, "").localeCompare(right.id.replace(/-(5h|weekly)$/, "")) ||
+        WINDOW_KIND_ORDER[left.kind] - WINDOW_KIND_ORDER[right.kind],
+    );
+  }
   if (pool.driver !== "cursor") return pool.windows;
   const hasAuto = pool.windows.some((window) => window.id === "autoPercentUsed");
   const hasApi = pool.windows.some((window) => window.id === "apiPercentUsed");

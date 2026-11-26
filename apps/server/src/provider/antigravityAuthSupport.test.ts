@@ -102,6 +102,7 @@ describe("Antigravity process environment", () => {
         SSH_CONNECTION: "127.0.0.1 0 127.0.0.1 0",
         GEMINI_HOME: profile.geminiHome,
         AGY_ACP_FORCE_FILE_STORAGE: "1",
+        AGY_CLI_FORCE_FILE_TOKEN_STORAGE: "1",
         AGY_CLI_DISABLE_AUTO_UPDATE: "true",
         BROWSER: profile.browserCommand,
         PYTHONUNBUFFERED: "1",
