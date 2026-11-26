@@ -32,7 +32,7 @@ import { resolveTimelineIsAtEnd, type MessagesTimelineRow } from "./MessagesTime
 import { measuredEndOffset, settleListScroll } from "./useTimelinePositionRestore";
 import {
   releaseChatTimelineAnchor,
-  shouldReleaseTimelineAnchorForToolActivity,
+  shouldReleaseTimelineAnchorForResponseActivity,
 } from "../ChatView.logic";
 import type { Dispatch, RefObject } from "react";
 import type { ThreadStructure } from "@t3tools/client-runtime/state/shell";
@@ -504,7 +504,7 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     if (timelineAnchorMessageId === null || !timelineLiveFollowEnabled) return;
     if (
       runningTurnHasReasoning ||
-      shouldReleaseTimelineAnchorForToolActivity({
+      shouldReleaseTimelineAnchorForResponseActivity({
         anchorMessageId: timelineAnchorMessageId,
         liveFollowEnabled: timelineLiveFollowEnabled,
         runningTurnId: activeRunningTurnId,

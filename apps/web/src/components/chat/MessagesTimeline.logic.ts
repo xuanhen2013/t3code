@@ -627,7 +627,6 @@ type MessagesTimelineRowContent =
       message: ChatMessage;
       projectedItem?: OrchestrationV2ProjectedTurnItem;
       showAssistantMeta: boolean;
-      showLiveAssistantMetrics?: boolean;
       suppressEmptyResponse?: boolean;
       showAssistantCopyButton: boolean;
       assistantCopyStreaming: boolean;
@@ -891,7 +890,7 @@ function deriveSupersededAttemptFolds(
 }
 
 // After send, the previous turn stays active until the server creates its replacement.
-function deriveUnsettledRunId(
+export function deriveUnsettledRunId(
   latestRun: TimelineLatestRun | null,
   runningRunId: RunId | null = null,
 ): RunId | null {
@@ -2303,10 +2302,10 @@ export function deriveMessagesTimelineRows(
       timelineEntry.message.role === "assistant" &&
       runIdIsActiveResponse(timelineEntry.message.runId);
 
-    const isTerminalAssistant =
+    const showAssistantMeta =
       timelineEntry.message.role === "assistant" &&
-      terminalAssistantMessageIds.has(timelineEntry.message.id);
-    const showAssistantMeta = isTerminalAssistant && !assistantResponseStillInProgress;
+      terminalAssistantMessageIds.has(timelineEntry.message.id) &&
+      !assistantResponseStillInProgress;
 
     nextRows.push({
       kind: "message",
@@ -2317,9 +2316,6 @@ export function deriveMessagesTimelineRows(
         ? {}
         : { projectedItem: timelineEntry.projectedItem }),
       showAssistantMeta,
-      ...(isTerminalAssistant && assistantResponseStillInProgress
-        ? { showLiveAssistantMetrics: true }
-        : {}),
       suppressEmptyResponse:
         timelineEntry.message.role === "assistant" &&
         timelineEntry.message.runId != null &&
@@ -2912,7 +2908,6 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.message === bm.message &&
         a.projectedItem === bm.projectedItem &&
         a.showAssistantMeta === bm.showAssistantMeta &&
-        a.showLiveAssistantMetrics === bm.showLiveAssistantMetrics &&
         a.suppressEmptyResponse === bm.suppressEmptyResponse &&
         a.showAssistantCopyButton === bm.showAssistantCopyButton &&
         a.assistantCopyStreaming === bm.assistantCopyStreaming &&

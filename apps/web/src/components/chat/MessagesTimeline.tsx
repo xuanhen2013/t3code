@@ -93,6 +93,7 @@ import {
   TIMELINE_MINIMAP_TARGET_OFFSET,
   timelineTurnFoldRunIdsByEntryId,
   liveAnswerPreview,
+  deriveUnsettledRunId,
   type MessagesTimelineRow,
   type TimelineLatestRun,
 } from "./MessagesTimeline.logic";
@@ -135,6 +136,7 @@ import {
   SentMessageTimelineRow,
   McpAppTimelineRow,
 } from "./TimelineAssistantRows";
+import { LiveAssistantTurnMetrics } from "./AssistantTurnMetrics";
 import { V2EventTimelineRow } from "./TimelineV2EventRow";
 import { startTimelinePositionRestore } from "./useTimelinePositionRestore";
 import {
@@ -1428,6 +1430,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     </TimelineRowCtx>
   );
   const listExtraData = { identity: listIdentityKey, rowCount: rows.length, sharedState };
+  const activeMetricsRunId = deriveUnsettledRunId(latestRun, runningRunId);
   const timelineListFooter = (
     <TimelineListFooter
       composerInset={anchoredEndSpace ? 0 : contentInsetEndAdjustment}
@@ -1446,6 +1449,14 @@ const ConversationTimeline = memo(function ConversationTimeline({
             </div>
           </div>
         </TimelineRowCtx>
+      ) : null}
+      {!syncing && (activeMetricsRunId !== null || (isWorking && runlessWorkActive)) ? (
+        <LiveAssistantTurnMetrics
+          key={`${listIdentityKey}:${activeMetricsRunId ?? "runless"}`}
+          threadRef={citationThreadRef}
+          runId={activeMetricsRunId}
+          timelineEntries={timelineEntries}
+        />
       ) : null}
     </TimelineListFooter>
   );
@@ -1690,8 +1701,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
               ? "pb-1"
               : (row.kind === "message" &&
                     row.message.role === "assistant" &&
-                    !row.showAssistantMeta &&
-                    !row.showLiveAssistantMetrics) ||
+                    !row.showAssistantMeta) ||
                   row.kind === "worktree-setup" ||
                   row.kind === "event" ||
                   row.kind === "attempt-fold" ||

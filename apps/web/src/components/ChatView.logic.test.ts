@@ -18,6 +18,7 @@ import {
   deriveAvailableRevertTurnCounts,
   deriveThreadPendingBackgroundTasks,
   resolveProactiveTurnDiffAction,
+  shouldReleaseTimelineAnchorForResponseActivity,
 } from "./ChatView.logic";
 import {
   isThreadEnvironmentLocked,
@@ -58,8 +59,12 @@ import { environmentThreadDetails } from "../state/threads";
 
 import type { Thread } from "../types";
 import { DraftId, hydrateImagesFromPersisted, useComposerDraftStore } from "../composerDraftStore";
-import { derivePhase } from "../session-logic";
-import { makeThreadFixture, makeThreadProjectionFixture } from "../test-fixtures";
+import { derivePhase, deriveTimelineEntriesFromVisibleTurnItems } from "../session-logic";
+import {
+  makeStreamingTimelineFixture,
+  makeThreadFixture,
+  makeThreadProjectionFixture,
+} from "../test-fixtures";
 import {
   getAntigravitySendBlockReason,
   resolveComposerProviderSelection,
@@ -1291,6 +1296,30 @@ describe("snapshotComposerSend", () => {
     expect(snapshot.draftText).toBe("why there?");
     expect(snapshot.replyTo).toBe(replyTo);
   });
+});
+
+it("follows a text-only reply as streaming starts while the reader is following", () => {
+  const fixture = makeStreamingTimelineFixture("Plain reply");
+  const messages = deriveTimelineEntriesFromVisibleTurnItems({
+    visibleTurnItems: fixture.visibleTurnItems,
+    optimisticMessages: [],
+  }).filter((entry) => entry.kind === "message");
+  const input = {
+    anchorMessageId: MessageId.make("live-user"),
+    liveFollowEnabled: true,
+    runningTurnId: fixture.runId,
+    timelineEntries: messages,
+  };
+  expect(shouldReleaseTimelineAnchorForResponseActivity(input)).toBe(true);
+  expect(
+    shouldReleaseTimelineAnchorForResponseActivity({ ...input, liveFollowEnabled: false }),
+  ).toBe(false);
+  expect(
+    shouldReleaseTimelineAnchorForResponseActivity({
+      ...input,
+      runningTurnId: fixture.historyRunId,
+    }),
+  ).toBe(false);
 });
 
 describe("deriveTimelineWorking", () => {

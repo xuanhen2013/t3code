@@ -347,6 +347,14 @@ export function readThreadTurnItems(ref: ScopedThreadRef) {
   );
 }
 
+/** A snapshot that includes streamed text, for readers that sample without subscribing. */
+export function readLiveThreadTurnItems(ref: ScopedThreadRef) {
+  return (
+    appAtomRegistry.get(environmentThreadDetails.threadAtom(ref))?.projection.visibleTurnItems ??
+    EMPTY_VISIBLE_TURN_ITEMS
+  );
+}
+
 export function readThreadShell(ref: ScopedThreadRef): EnvironmentThreadShell | null {
   return appAtomRegistry.get(environmentThreadShells.threadShellAtom(ref));
 }

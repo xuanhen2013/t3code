@@ -280,7 +280,7 @@ export function shouldDockDraftHeroForSubmission(input: {
   );
 }
 
-export function shouldReleaseTimelineAnchorForToolActivity(input: {
+export function shouldReleaseTimelineAnchorForResponseActivity(input: {
   anchorMessageId: MessageId | null;
   liveFollowEnabled: boolean;
   runningTurnId: RunId | null;
@@ -291,6 +291,13 @@ export function shouldReleaseTimelineAnchorForToolActivity(input: {
   }
 
   return input.timelineEntries.some((timelineEntry) => {
+    if (timelineEntry.kind === "message") {
+      return (
+        timelineEntry.message.role === "assistant" &&
+        timelineEntry.message.runId === input.runningTurnId &&
+        timelineEntry.message.streaming
+      );
+    }
     if (timelineEntry.kind !== "work" || timelineEntry.entry.runId !== input.runningTurnId) {
       return false;
     }
