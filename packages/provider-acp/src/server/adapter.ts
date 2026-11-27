@@ -14,6 +14,7 @@ import {
   type OrchestrationV2ProviderThread,
   type OrchestrationV2ProviderThreadNativeMetadata,
   type OrchestrationV2ProviderTurn,
+  type OrchestrationV2RecordedModelUsage,
   type OrchestrationV2RuntimeRequest,
   type OrchestrationV2Subagent,
   type OrchestrationV2TurnItem,
@@ -457,6 +458,10 @@ export interface AcpAdapterV2Flavor {
       options?: { readonly retired?: boolean },
     ) => Effect.Effect<AcpPromptOutcomeFailure | undefined>
   >;
+  /** Capture native, request-level usage from before this turn's first prompt. */
+  readonly watchModelUsage?: (
+    sessionId: string,
+  ) => Effect.Effect<Effect.Effect<OrchestrationV2RecordedModelUsage | undefined> | undefined>;
   readonly requiresSignIn?: (cause: unknown) => boolean;
   /**
    * Runs before attachment paths, T3 instructions and native slash-command detection,
@@ -1810,6 +1815,8 @@ interface ActiveAcpTurn {
   /** Completed when an update after dispatch matches `cancelAfterPromptStarts.isStart`. */
   readonly promptStarted: Deferred.Deferred<void, never>;
   promptUsage: EffectAcpSchema.Usage | undefined;
+  readonly readModelUsage: Effect.Effect<OrchestrationV2RecordedModelUsage | undefined> | undefined;
+  recordedModelUsage: OrchestrationV2RecordedModelUsage | undefined;
   backgroundFinalizeGeneration: number;
   /** `replyEndsWithUsageUpdate`: output arrived and its closing `usage_update` has not. */
   replyOpen: boolean;
@@ -8796,6 +8803,9 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           status,
           startedAt: context.startedAt,
           completedAt,
+          ...(context.recordedModelUsage === undefined
+            ? {}
+            : { recordedModelUsage: context.recordedModelUsage }),
           ...(status === "running" || status === "pending"
             ? {}
             : {
@@ -8808,6 +8818,33 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                   flavor.geminiPromptUsage,
                 ),
               }),
+        });
+
+        const followRecordedModelUsage = Effect.fnUntraced(function* (
+          context: ActiveAcpTurn,
+          read: Effect.Effect<OrchestrationV2RecordedModelUsage | undefined>,
+          generation: number,
+        ) {
+          while (!context.finalized) {
+            yield* Effect.sleep("1 second");
+            if (context.finalized) return;
+            const sample = yield* read;
+            if (sample === undefined || sample === context.recordedModelUsage) continue;
+            const published = yield* runRuntimeCallbackAtGeneration(
+              generation,
+              Effect.gen(function* () {
+                if (context.finalized || (yield* Ref.get(activeTurn)) !== context) return;
+                context.recordedModelUsage = sample;
+                yield* emitProviderEvent({
+                  type: "provider_turn.updated",
+                  driver,
+                  threadId: context.input.threadId,
+                  providerTurn: providerTurnPayload(context, "running", null),
+                });
+              }),
+            );
+            if (Option.isNone(published)) return;
+          }
         });
 
         const terminalizeOpenRunOwnedItems = Effect.fnUntraced(function* (
@@ -9023,6 +9060,10 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             });
           }
           yield* reportAgentModeChanges(context.input.threadId);
+          if (context.readModelUsage !== undefined) {
+            context.recordedModelUsage =
+              (yield* context.readModelUsage) ?? context.recordedModelUsage;
+          }
           const turn = providerTurnPayload(context, settledStatus, now);
           yield* emitProviderEvent({
             type: "provider_turn.updated",
@@ -9997,6 +10038,11 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               promptSentAt: null,
               promptStarted,
               promptUsage: undefined,
+              readModelUsage:
+                flavor.watchModelUsage === undefined
+                  ? undefined
+                  : yield* flavor.watchModelUsage(requestedSessionId),
+              recordedModelUsage: undefined,
               backgroundFinalizeGeneration: 0,
               replyOpen: false,
               nativePromptId: undefined,
@@ -10026,6 +10072,12 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               threadId: turnInput.threadId,
               providerTurn: runningTurn,
             });
+            if (context.readModelUsage !== undefined) {
+              const generation = yield* Ref.get(runtimeCallbackGeneration);
+              yield* followRecordedModelUsage(context, context.readModelUsage, generation).pipe(
+                Effect.forkIn(sessionScope),
+              );
+            }
             const activeProviderThread: OrchestrationV2ProviderThread = {
               ...turnInput.providerThread,
               providerSessionId: input.providerSessionId,

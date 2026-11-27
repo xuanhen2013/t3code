@@ -13011,10 +13011,8 @@
   "42ee26987b45661a": "{count} tokens de salida",
   "373b902767887731": "Tokens de entrada y salida del agente principal en este turno del proveedor",
   "ec9955b3ec685da6": "Tokens de salida informados por el proveedor",
-  "1bb782a0e81f8165": "Tokens de salida estimados a partir del texto de esta respuesta",
-  "732a58bc55cebfef": "Velocidad media de salida durante el turno del proveedor, incluidas las esperas y el uso de herramientas",
-  "aeda9e3477dd5410": "Velocidad media de salida estimada para el texto de esta respuesta",
   "5755c03c64f9f184": "{rate} tok/s",
-  "deecdab418b51f6b": "{rate} tok/s de media",
-  "da7ccb37e764c426": "Estimación basada en el texto recibido durante el último intervalo"
+  "5df48397712063f5": "Tokens de entrada, de lectura de caché y de salida registrados hasta ahora en este turno",
+  "48867bb2d5a7d870": "Velocidad de salida de la última solicitud medida, sin contar la espera hasta el primer token",
+  "c2ebc08b959cf3e4": "Velocidad de salida de la última solicitud medida, contando la espera hasta el primer token"
 }

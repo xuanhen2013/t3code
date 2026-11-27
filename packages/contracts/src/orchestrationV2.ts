@@ -1351,6 +1351,18 @@ export const OrchestrationV2ContextHandoff = Schema.Struct({
 });
 export type OrchestrationV2ContextHandoff = typeof OrchestrationV2ContextHandoff.Type;
 
+export const OrchestrationV2RecordedModelUsage = Schema.Struct({
+  inputTokens: NonNegativeInt,
+  outputTokens: NonNegativeInt,
+  latestRequestRate: Schema.NullOr(
+    Schema.Struct({
+      tokensPerSecond: Schema.Number.check(Schema.isFinite(), Schema.isGreaterThanOrEqualTo(0)),
+      timing: Schema.Literals(["stream", "request"]),
+    }),
+  ),
+});
+export type OrchestrationV2RecordedModelUsage = typeof OrchestrationV2RecordedModelUsage.Type;
+
 export const OrchestrationV2ProviderTurn = Schema.Struct({
   id: ProviderTurnId,
   providerThreadId: ProviderThreadId,
@@ -1372,6 +1384,8 @@ export const OrchestrationV2ProviderTurn = Schema.Struct({
   completedAt: Schema.NullOr(Schema.DateTimeUtc),
   tokenUsage: Schema.optional(OrchestrationV2ProviderTurnTokenUsage),
   turnTokenUsage: Schema.optional(TurnTokenUsage),
+  /** Totals through the model requests recorded locally for this provider turn. */
+  recordedModelUsage: Schema.optional(OrchestrationV2RecordedModelUsage),
   /** The model the provider reported running this turn's root agent, which can differ from the requested one. */
   model: Schema.optional(TrimmedNonEmptyString),
   /** True when the provider dropped this turn's request before persisting it to native history. */

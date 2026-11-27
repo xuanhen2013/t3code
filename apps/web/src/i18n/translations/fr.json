@@ -13016,10 +13016,8 @@
   "42ee26987b45661a": "{count} jetons en sortie",
   "373b902767887731": "Jetons d’entrée et de sortie de l’agent principal pour ce tour du fournisseur",
   "ec9955b3ec685da6": "Jetons de sortie indiqués par le fournisseur",
-  "1bb782a0e81f8165": "Jetons de sortie estimés à partir du texte de cette réponse",
-  "732a58bc55cebfef": "Débit de sortie moyen sur le tour du fournisseur, attente et utilisation des outils comprises",
-  "aeda9e3477dd5410": "Débit de sortie moyen estimé pour le texte de cette réponse",
   "5755c03c64f9f184": "{rate} tok/s",
-  "deecdab418b51f6b": "{rate} tok/s en moy.",
-  "da7ccb37e764c426": "Estimation d’après le texte reçu pendant le dernier intervalle"
+  "5df48397712063f5": "Jetons d’entrée, de lecture du cache et de sortie enregistrés pour ce tour",
+  "48867bb2d5a7d870": "Débit de sortie de la dernière requête mesurée, hors attente du premier jeton",
+  "c2ebc08b959cf3e4": "Débit de sortie de la dernière requête mesurée, attente du premier jeton comprise"
 }

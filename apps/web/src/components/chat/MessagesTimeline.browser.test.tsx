@@ -38,12 +38,11 @@ import { DEFAULT_CLIENT_SETTINGS } from "@t3tools/contracts/settings";
 import "~/index.css";
 
 import { environmentThreadDetails } from "../../state/threads";
-import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { MessagesTimeline } from "./MessagesTimeline";
 import { createWorkspaceFocusController, workspaceAreaProps } from "../../lib/workspaceFocus";
 import { resolveTimelineIsAtEnd } from "./MessagesTimeline.logic";
-import { makeStreamingTimelineFixture, makeThreadProjectionFixture } from "../../test-fixtures";
+import { makeStreamingTimelineFixture } from "../../test-fixtures";
 import {
   type PendingApproval,
   deriveTimelineEntriesFromVisibleTurnItems,
@@ -2534,7 +2533,7 @@ describe("compact reasoning math", () => {
   });
 });
 
-it("follows the turn's tail and samples output across tools and reply segments", async () => {
+it("keeps measured usage at the turn's tail across tools and reply segments", async () => {
   setup();
   const fixture = makeStreamingTimelineFixture();
   const assistant = fixture.visibleTurnItems[5]!;
@@ -2544,19 +2543,12 @@ it("follows the turn's tail and samples output across tools and reply segments",
     id: ProviderTurnId.make("live-provider-turn"),
     providerThreadId: ProviderThreadId.make("metrics-provider-thread"),
     nodeId: NodeId.make("metrics-root"),
-    runAttemptId: null,
+    runAttemptId: RunAttemptId.make("metrics-attempt"),
     nativeTurnRef: null,
     ordinal: 1,
     status: "completed",
     startedAt: DateTime.makeUnsafe(fixture.time(5)),
     completedAt: DateTime.makeUnsafe(fixture.time(15)),
-    turnTokenUsage: {
-      usageScope: "main_agent",
-      usageStatus: "complete",
-      hasSubagents: false,
-      inputTokens: 500,
-      outputTokens: 120,
-    },
   };
   const props = baseProps();
   const replyItem = (text: string, streaming: boolean, final = false) => ({
@@ -2590,64 +2582,72 @@ it("follows the turn's tail and samples output across tools and reply segments",
       completedAt: null,
     },
   };
-  const ui = (items: ReadonlyArray<OrchestrationV2ProjectedTurnItem> = [], active = false) => (
+  const ui = (
+    items: ReadonlyArray<OrchestrationV2ProjectedTurnItem> = [],
+    active = false,
+    usage?: OrchestrationV2ProviderTurn["recordedModelUsage"],
+  ) => (
     <MessagesTimeline
       {...props}
       isWorking={active}
       runningRunId={active ? fixture.runId : null}
-      providerTurns={active ? [] : [providerTurn]}
+      activeRunAttemptId={active ? providerTurn.runAttemptId : null}
+      providerTurns={[
+        {
+          ...providerTurn,
+          ...(active ? { status: "running", completedAt: null } : {}),
+          ...(usage === undefined ? {} : { recordedModelUsage: usage }),
+        },
+      ]}
       timelineEntries={deriveTimelineEntriesFromVisibleTurnItems({
         visibleTurnItems: [...fixture.visibleTurnItems.slice(0, 5), ...items],
         optimisticMessages: [],
       })}
     />
   );
-  const projection = makeThreadProjectionFixture();
-  const liveThread = Atom.make({ environmentId: ENVIRONMENT_ID, projection });
-  using _liveThread = { [Symbol.dispose]: appAtomRegistry.mount(liveThread) };
-  using _threadAtom = vi.spyOn(environmentThreadDetails, "threadAtom").mockReturnValue(liveThread);
-  const publishText = (visibleTurnItems: ReadonlyArray<OrchestrationV2ProjectedTurnItem>) =>
-    act(() => {
-      appAtomRegistry.set(liveThread, {
-        environmentId: ENVIRONMENT_ID,
-        projection: { ...projection, visibleTurnItems },
-      });
-    });
   await using screen = await renderElement(ui());
-  const oldCount = screen.getByText("≈ 1 output tokens", { exact: true });
+  const oldCount = screen.getByText("– tokens", { exact: true });
   await expect.element(oldCount).toBeVisible();
   expect(oldCount.element().parentElement?.textContent).toContain("– tok/s");
 
-  using _timers = fakeTimers();
-  await screen.rerender(ui([replyItem("Text", true)], true));
   const reply = `Text${"字".repeat(40)}`;
-  await publishText([replyItem(reply, true)]);
-  await act(() => vi.advanceTimersByTime(1_500));
-  await expect.element(screen.getByText("≈ 20 tok/s", { exact: true })).toBeVisible();
+  await screen.rerender(ui([replyItem(reply, true)], true));
+  await expect.element(screen.getByText("– tok/s", { exact: true }).last()).toBeVisible();
 
   const first = replyItem(reply, false);
-  await screen.rerender(ui([first, tool], true));
+  const firstUsage = {
+    inputTokens: 1_000,
+    outputTokens: 120,
+    latestRequestRate: { tokensPerSecond: 60, timing: "stream" },
+  } as const;
+  await screen.rerender(ui([first, tool], true, firstUsage));
   const toolRow = screen.container.querySelector('[data-timeline-row-kind="work-live"]')!;
-  const liveRate = screen.getByText("≈ 20 tok/s", { exact: true });
-  expect(screen.text()).toContain("≈ 20 tok/s");
+  const liveRate = screen.getByText("60 tok/s", { exact: true });
+  await expect.element(liveRate).toBeVisible();
+  await expect.element(screen.getByText("1,120 tokens", { exact: true })).toBeVisible();
   expect(
     toolRow.compareDocumentPosition(liveRate.element()) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
-  await act(() => vi.advanceTimersByTime(1_500));
-  await expect.element(screen.getByText("≈ 0 tok/s", { exact: true })).toBeVisible();
 
   const doneTool = { ...tool, item: { ...tool.item, status: "completed" as const } };
   const secondReply = "More. ".repeat(10);
-  await screen.rerender(ui([first, doneTool, replyItem("More", true, true)], true));
-  await publishText([first, replyItem(secondReply, true, true)]);
-  await act(() => vi.advanceTimersByTime(1_500));
-  await expect.element(screen.getByText("≈ 10 tok/s", { exact: true })).toBeVisible();
-  await expect.element(screen.getByText("≈ 46 output tokens", { exact: true })).toBeVisible();
+  const finalUsage = {
+    inputTokens: 2_000,
+    outputTokens: 720,
+    latestRequestRate: { tokensPerSecond: 20, timing: "request" },
+  } as const;
+  await screen.rerender(
+    ui([first, doneTool, replyItem(secondReply, true, true)], true, finalUsage),
+  );
+  await expect.element(screen.getByText("20 tok/s", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("2,720 tokens", { exact: true })).toBeVisible();
 
-  await screen.rerender(ui([first, doneTool, replyItem(secondReply, false, true)]));
-  const count = screen.getByText("620 tokens", { exact: true });
+  await screen.rerender(
+    ui([first, doneTool, replyItem(secondReply, false, true)], false, finalUsage),
+  );
+  const count = screen.getByText("2,720 tokens", { exact: true });
   await expect.element(count).toBeVisible();
-  await expect.element(screen.getByText("12 tok/s avg", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("20 tok/s", { exact: true })).toBeVisible();
   expect(count.element().checkVisibility({ opacityProperty: true })).toBe(true);
   const replyRow = screen.container.querySelector('[data-message-id="final-assistant"]')!;
   const copy = replyRow.querySelector('[aria-label="Copy message"]')!;

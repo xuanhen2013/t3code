@@ -13023,10 +13023,8 @@
   "42ee26987b45661a": "{count} utdatatoken",
   "373b902767887731": "Huvudagentens in- och utdatatoken för den här turen hos leverantören",
   "ec9955b3ec685da6": "Utdatatoken som leverantören rapporterade",
-  "1bb782a0e81f8165": "Uppskattat antal utdatatoken utifrån svarets text",
-  "732a58bc55cebfef": "Genomsnittlig utdatahastighet för leverantörens tur, inklusive väntan och verktygsanvändning",
-  "aeda9e3477dd5410": "Uppskattad genomsnittlig utdatahastighet för texten i det här svaret",
   "5755c03c64f9f184": "{rate} tok/s",
-  "deecdab418b51f6b": "{rate} tok/s i snitt",
-  "da7ccb37e764c426": "Uppskattat utifrån texten som togs emot under det senaste intervallet"
+  "5df48397712063f5": "Indata, cachelästa token och utdata som har registrerats för den här turen",
+  "48867bb2d5a7d870": "Utdatahastighet för den senaste uppmätta begäran, exklusive väntan på första token",
+  "c2ebc08b959cf3e4": "Utdatahastighet för den senaste uppmätta begäran, inklusive väntan på första token"
 }

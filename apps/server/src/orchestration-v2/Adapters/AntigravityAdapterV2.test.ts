@@ -1,3 +1,4 @@
+import * as NodeSqlite from "node:sqlite";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
@@ -1576,6 +1577,75 @@ const openSessionWithRunningCommand = Effect.fn("openSessionWithRunningCommand")
 });
 
 describe("AntigravityAdapterV2 work after the prompt ends", () => {
+  it.effect("publishes native request measurements while a tool runs and at settlement", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const profileDirectory = yield* fs.makeTempDirectoryScoped();
+      const conversations = path.join(profileDirectory, "antigravity-acp", "conversations");
+      yield* fs.makeDirectory(conversations, { recursive: true });
+      const database = yield* Effect.acquireRelease(
+        Effect.sync(
+          () => new NodeSqlite.DatabaseSync(path.join(conversations, "mock-session-1.db")),
+        ),
+        (db) => Effect.sync(() => db.close()),
+      );
+      database.exec("CREATE TABLE gen_metadata (idx INTEGER PRIMARY KEY, data BLOB)");
+      const insert = database.prepare("INSERT INTO gen_metadata VALUES (?, ?)");
+      // A native model record with 400 uncached input, 600 cached input, and 120 output
+      // tokens. Eight seconds to the first token and two seconds streaming gives 60 tok/s.
+      const generation = Buffer.from("0a122208109003187828d8045a02080862020802", "hex");
+      insert.run(0, generation);
+
+      const { command, usage, send, startTurn, until, throughPromptSettled, throughTerminal } =
+        yield* openSessionWithRunningCommand({ WaitMsBeforeAsync: 10000 }, undefined, undefined, {
+          profileDirectory,
+        });
+      yield* startTurn(1, false);
+      yield* throughPromptSettled;
+      insert.run(1, generation);
+      yield* TestClock.adjust("1 second");
+      const measured = (yield* until(
+        (event) =>
+          event.type === "provider_turn.updated" &&
+          event.providerTurn.recordedModelUsage !== undefined,
+      )).at(-1);
+      assert.equal(
+        measured?.type === "provider_turn.updated" && measured.providerTurn.status,
+        "running",
+      );
+      assert.deepEqual(
+        measured?.type === "provider_turn.updated" && measured.providerTurn.recordedModelUsage,
+        {
+          inputTokens: 1_000,
+          outputTokens: 120,
+          latestRequestRate: { tokensPerSecond: 60, timing: "stream" },
+        },
+      );
+
+      yield* send({ sessionUpdate: "tool_call_update", ...command, status: "completed" });
+      yield* send({
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "Complete." },
+      });
+      yield* send(usage);
+      insert.run(2, generation);
+      yield* TestClock.adjust("3 seconds");
+      const settled = (yield* throughTerminal).findLast(
+        (event) =>
+          event.type === "provider_turn.updated" && event.providerTurn.status === "completed",
+      );
+      assert.deepEqual(
+        settled?.type === "provider_turn.updated" && settled.providerTurn.recordedModelUsage,
+        {
+          inputTokens: 2_000,
+          outputTokens: 240,
+          latestRequestRate: { tokensPerSecond: 60, timing: "stream" },
+        },
+      );
+    }).pipe(Effect.provide(layerSession)),
+  );
+
   // agy sets `IsDaemon` on a command it does not wait for. When it exits, the agent replies
   // with no prompt open.
   it.effect("continues in one run when a finished daemon wakes the agent", () =>

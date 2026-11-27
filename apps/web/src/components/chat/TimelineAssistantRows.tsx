@@ -81,7 +81,6 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
             className="mt-1.5"
             projectedItem={row.projectedItem}
             message={row.message}
-            text={text}
             showCopyButton={row.showAssistantCopyButton}
             copyStreaming={row.assistantCopyStreaming}
           />
@@ -187,7 +186,6 @@ export function AssistantMetaTimelineRow({
         className="mt-0.5"
         projectedItem={row.projectedItem}
         message={row.message}
-        text={row.message.text}
         showCopyButton={row.showAssistantCopyButton}
         copyStreaming={row.assistantCopyStreaming}
         alwaysVisible
@@ -200,7 +198,6 @@ function AssistantMessageMeta({
   className,
   projectedItem,
   message,
-  text,
   showCopyButton,
   copyStreaming,
   alwaysVisible = false,
@@ -208,7 +205,6 @@ function AssistantMessageMeta({
   className?: string;
   projectedItem?: Extract<TimelineRow, { kind: "message" }>["projectedItem"];
   message: ChatMessage;
-  text: string;
   showCopyButton: boolean;
   copyStreaming: boolean;
   alwaysVisible?: boolean;
@@ -258,12 +254,7 @@ function AssistantMessageMeta({
           </SharedTooltipTrigger>
         )}
       </div>
-      <AssistantTurnMetrics
-        text={text}
-        pending={copyStreaming}
-        item={projectedItem?.item}
-        providerTurn={providerTurn}
-      />
+      <AssistantTurnMetrics providerTurn={providerTurn} />
     </div>
   );
 }

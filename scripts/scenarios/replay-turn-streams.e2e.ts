@@ -15,7 +15,7 @@ test(
     await expect(
       screen.getByText("The project has a single math module", { exact: false }),
     ).toBeVisible();
-    await expect(screen.getByText(/≈ [1-9]\d*(?:\.\d+)? tok\/s$/)).toBeVisible();
+    await expect(screen.getByText("– tok/s", { exact: true })).toBeVisible();
     await expect(stop).toBeVisible();
     await app.screenshot("streaming");
 

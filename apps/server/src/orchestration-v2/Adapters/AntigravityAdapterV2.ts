@@ -38,6 +38,7 @@ import {
 } from "../../provider/acp/AntigravityChildWork.ts";
 import { readAntigravityClientTextFile } from "../../provider/acp/AntigravityClientFiles.ts";
 import { watchAntigravityPromptOutcome } from "../../provider/acp/AntigravityTurnOutcome.ts";
+import { watchAntigravityTurnUsage } from "../../provider/acp/AntigravityTurnUsage.ts";
 import {
   antigravityApprovalOptions,
   antigravitySwarmAddChildSessionId,
@@ -315,6 +316,8 @@ export function makeAntigravityAcpAdapterFlavor(
       : {
           watchPromptOutcome: (sessionId: string) =>
             watchAntigravityPromptOutcome(profileDirectory, sessionId),
+          watchModelUsage: (sessionId: string) =>
+            watchAntigravityTurnUsage(profileDirectory, sessionId),
           subagentsOutlivingPrompt: ({ sessionId, nativeTaskIds }) =>
             readAntigravityChildrenAtWork({
               profileDirectory,
