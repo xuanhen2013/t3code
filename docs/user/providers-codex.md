@@ -6,9 +6,9 @@ Use your ChatGPT plan or an existing Codex CLI login to run Codex in T3 Code.
 
 Connect during onboarding or in **Settings → Providers** (select your target environment first for remote machines). T3 Code manages the Codex runtime and signs you in via OpenAI.
 
-- Manage shared usage and credits through **Manage usage** in T3 Code.
+- When Codex reports limits during a conversation, **Usage → Limits** shows them for the connected account. Open **Manage usage** to view your full usage and manage credits in ChatGPT.
 - **Remote sign-in**: If sign-in doesn't return automatically, paste the full `localhost` redirect URL into the sign-in panel.
-- **Speed options**: Fast and Ultrafast speeds are not available through ChatGPT sharing—[use an existing Codex login](#use-an-existing-codex-login) instead.
+- **Speed options**: Choose from the speeds listed for the selected model. ChatGPT applies your account's eligibility and usage limits.
 - Disconnecting stops running threads while preserving history.
 
 ## Use an existing Codex login

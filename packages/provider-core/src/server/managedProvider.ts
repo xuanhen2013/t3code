@@ -63,6 +63,8 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
   readonly initialSnapshot: (settings: Settings) => Effect.Effect<ServerProvider>;
   readonly checkProvider: Effect.Effect<ServerProvider, ServerSettingsError>;
   readonly checkUsageLimits?: Effect.Effect<ServerProvider["usageLimits"]>;
+  /** Some connections report limits in turns and have no account-level read. */
+  readonly acceptStreamedUsageLimits?: boolean;
   readonly invalidateUsageCache?: Effect.Effect<void>;
   readonly enrichSnapshot?: (input: {
     readonly settings: Settings;
@@ -213,6 +215,7 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
         const differs = (a: string | undefined, b: string | undefined) =>
           a !== undefined && b !== undefined && a !== b;
         const switchedAccount =
+          probedSnapshot.auth.profileId !== previous.profileId ||
           differs(probedSnapshot.auth.email?.toLowerCase(), previous.email?.toLowerCase()) ||
           (probedSnapshot.auth.workspaceId !== undefined &&
             probedSnapshot.auth.workspaceId !== previous.workspaceId);
@@ -262,6 +265,10 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
   const applyUsageLimits: ManagedServerProvider["applyUsageLimits"] = Effect.fnUntraced(
     function* (update) {
       const snapshotToPublish = yield* Ref.modify(snapshotStateRef, (state) => {
+        const { auth } = state.snapshot;
+        if (input.acceptStreamedUsageLimits && auth.status !== "authenticated") {
+          return [null, state] as const;
+        }
         const complete = update.complete && update.windows.length > 0;
         const usageLimits = complete
           ? makeUsageLimits(update)
@@ -269,8 +276,8 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
               previous: state.snapshot.usageLimits,
               update,
               checkedAt: update.checkedAt,
+              acceptStreamedUsageLimits: input.acceptStreamedUsageLimits === true,
             });
-        const { auth } = state.snapshot;
         const label = update.windows.length > 0 ? update.authLabel : undefined;
         const relabel =
           (label !== undefined || (complete && state.usageAuthLabel !== undefined)) &&

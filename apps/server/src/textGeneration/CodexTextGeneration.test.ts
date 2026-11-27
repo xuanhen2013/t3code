@@ -366,12 +366,12 @@ it.layer(layerCodexTextGenerationTest)("CodexTextGeneration", (it) => {
     ),
   );
 
-  it.effect("omits a persisted service tier for managed ChatGPT text generation", () =>
+  it.effect("sends the selected service tier for managed ChatGPT text generation", () =>
     withFakeCodexEnv(
       {
         output: JSON.stringify({ subject: "Update project", body: "" }),
         managedRuntime: true,
-        forbidArg: 'service_tier="priority"',
+        requireServiceTier: "priority",
       },
       (textGeneration) =>
         textGeneration.generateCommitMessage({

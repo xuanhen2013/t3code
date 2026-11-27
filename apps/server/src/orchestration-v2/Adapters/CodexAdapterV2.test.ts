@@ -699,6 +699,7 @@ function codexReplayPreamble(input: {
   readonly prompt: string;
   readonly sentPrompt?: string;
   readonly effort?: string;
+  readonly serviceTier?: string;
   readonly interactionMode?: "plan" | "default";
   readonly turnPolicy?: Pick<
     typeof CodexClient.V2TurnStartParams.Type,
@@ -804,6 +805,7 @@ function codexReplayPreamble(input: {
           ...input.turnPolicy,
           summary: "auto",
           ...(input.effort === undefined ? {} : { effort: input.effort }),
+          ...(input.serviceTier === undefined ? {} : { serviceTier: input.serviceTier }),
           collaborationMode: {
             mode: input.interactionMode ?? "default",
             settings: {
@@ -1735,7 +1737,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
     onUsageLimits?: CodexAdapterV2.CodexAdapterV2Options["onUsageLimits"],
     promptSuggestions: Effect.Effect<boolean> = Effect.succeed(false),
     onNotification: (method: string) => Effect.Effect<void> = () => Effect.void,
-    models?: CodexAdapterV2.CodexAdapterV2Options["models"],
+    options?: Pick<CodexAdapterV2.CodexAdapterV2Options, "models" | "resolveRuntime">,
   ) =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
@@ -1799,7 +1801,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         environment: {},
         clientFactory,
         ...(onUsageLimits ? { onUsageLimits } : {}),
-        ...(models ? { models } : {}),
+        ...options,
         digest: yield* Digest.Digest,
         fileSystem,
         idAllocator,
@@ -2411,26 +2413,36 @@ describe("CodexAdapterV2 post-settle continuation", () => {
   );
 
   it.effect.each([
-    { codex: "accepts", reply: { result: {} } },
-    { codex: "rejects", reply: { error: { code: -32601, message: "Method not found" } } },
+    { setupMode: "existing", codex: "accepts", reply: { result: {} } },
+    { setupMode: "managed", codex: "accepts", reply: { result: {} } },
+    {
+      setupMode: "managed",
+      codex: "rejects",
+      reply: { error: { code: -32601, message: "Method not found" } },
+    },
   ] as const)(
-    "a steer that changes the service tier still steers when Codex $codex the settings update",
-    ({ codex, reply }) =>
+    "sends the selected service tier on $setupMode sessions when Codex $codex the settings update",
+    ({ setupMode, codex, reply }) =>
       Effect.gen(function* () {
         const nativeThreadId = `steer-tier-thread-${codex}`;
         const nativeTurnId = `steer-tier-turn-${codex}`;
         const harness = yield* makeCodexReplayHarness(
           makeCodexReplayTranscript({
-            scenario: `steer-service-tier-${codex}`,
+            scenario: `steer-service-tier-${setupMode}-${codex}`,
             entries: [
-              ...codexReplayPreamble({ nativeThreadId, nativeTurnId, prompt: "Work." }),
+              ...codexReplayPreamble({
+                nativeThreadId,
+                nativeTurnId,
+                prompt: "Work.",
+                serviceTier: "priority",
+              }),
               {
                 type: "expect_outbound",
                 label: "thread/settings/update",
                 frame: {
                   id: 4,
                   method: "thread/settings/update",
-                  params: { threadId: nativeThreadId, serviceTier: "fast" },
+                  params: { threadId: nativeThreadId, serviceTier: "ultrafast" },
                 },
               },
               { type: "emit_inbound", frame: { id: 4, ...reply } },
@@ -2460,14 +2472,36 @@ describe("CodexAdapterV2 post-settle continuation", () => {
               },
             ],
           }),
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          setupMode === "managed"
+            ? {
+                resolveRuntime: Effect.succeed({
+                  config: { ...DEFAULT_CODEX_SETTINGS, setupMode },
+                  environment: {},
+                  revision: "managed-profile",
+                }),
+              }
+            : undefined,
         );
-        const turnInput = makeCodexTestTurnInput({
-          threadId: harness.threadId,
-          providerThread: harness.providerThread,
-          now: yield* DateTime.now,
-          attemptId: RunAttemptId.make("steer-tier-attempt"),
-          text: "Work.",
-        });
+        const turnInput = {
+          ...makeCodexTestTurnInput({
+            threadId: harness.threadId,
+            providerThread: harness.providerThread,
+            now: yield* DateTime.now,
+            attemptId: RunAttemptId.make("steer-tier-attempt"),
+            text: "Work.",
+          }),
+          modelSelection: {
+            ...CODEX_TEST_MODEL_SELECTION,
+            options: [{ id: "serviceTier", value: "priority" }],
+          },
+        };
         yield* harness.runtime.startTurn(turnInput);
         yield* harness.until(() =>
           harness.events.some(
@@ -2486,7 +2520,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           providerTurnId,
           modelSelection: {
             ...CODEX_TEST_MODEL_SELECTION,
-            options: [{ id: "serviceTier", value: "fast" }],
+            options: [{ id: "serviceTier", value: "ultrafast" }],
           },
           message: { ...turnInput.message, text: "Hurry up." },
         });
@@ -4730,27 +4764,29 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           Effect.sync(() => {
             if (method === "item/completed" || method === "turn/completed") wireOrder.push(method);
           }),
-        Effect.succeed<ReadonlyArray<ServerProviderModel>>([
-          {
-            slug: modelSelection.model,
-            name: modelSelection.model,
-            isCustom: false,
-            capabilities: {
-              optionDescriptors: [
-                {
-                  id: "cyberAccessProgram",
-                  label: "Cyber Access",
-                  type: "select",
-                  options: [
-                    { id: "standard", label: "Standard" },
-                    { id: "daybreakBlue", label: "Daybreak Blue", isDefault: true },
-                  ],
-                  currentValue: "daybreakBlue",
-                },
-              ],
+        {
+          models: Effect.succeed<ReadonlyArray<ServerProviderModel>>([
+            {
+              slug: modelSelection.model,
+              name: modelSelection.model,
+              isCustom: false,
+              capabilities: {
+                optionDescriptors: [
+                  {
+                    id: "cyberAccessProgram",
+                    label: "Cyber Access",
+                    type: "select",
+                    options: [
+                      { id: "standard", label: "Standard" },
+                      { id: "daybreakBlue", label: "Daybreak Blue", isDefault: true },
+                    ],
+                    currentValue: "daybreakBlue",
+                  },
+                ],
+              },
             },
-          },
-        ]),
+          ]),
+        },
       );
       yield* (yield* McpProviderSessions.McpProviderSessions).set({
         environmentId: EnvironmentId.make("test"),

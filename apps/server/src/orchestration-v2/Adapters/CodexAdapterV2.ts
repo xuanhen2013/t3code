@@ -921,8 +921,6 @@ export const buildCodexTurnStartParams = Effect.fn("CodexAdapterV2.buildCodexTur
     readonly agentFeedback?: AgentFeedbackMode;
     readonly browserToolsAvailable?: boolean;
     readonly deviceToolsAvailable?: boolean;
-    /** ChatGPT token sharing does not accept service tiers. */
-    readonly omitServiceTier?: boolean;
     readonly appContext?: ProviderAdapter.ProviderAdapterV2TurnInput["appContext"];
     /** Set only for a model that offers Cyber Access; custom models never do. */
     readonly cyberAccess?: { readonly defaultProgram: string | undefined } | undefined;
@@ -953,10 +951,7 @@ export const buildCodexTurnStartParams = Effect.fn("CodexAdapterV2.buildCodexTur
       codexDefaultReasoningEffortOverride(input.modelSelection.model);
     const effort =
       selectedEffort === undefined ? undefined : yield* decodeTurnReasoningEffort(selectedEffort);
-    const serviceTier =
-      input.omitServiceTier === true
-        ? undefined
-        : getCodexServiceTierOptionValue(input.modelSelection);
+    const serviceTier = getCodexServiceTierOptionValue(input.modelSelection);
     // A chosen program goes as is, even one the model lacks, so Codex rejects it visibly.
     const cyberAccessProgram =
       input.cyberAccess === undefined
@@ -6989,7 +6984,8 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             event.status === "failed" &&
             event.failure.class === "usage_limit" &&
             event.failure.resetAt == null &&
-            // The account read only reports the ordinary allowance, never a sharing cap's reset.
+            // The saved CLI login can belong to a different account from the managed connection.
+            resolvedRuntime === undefined &&
             !classifyCodexManagedError(event.failure.code)?.usageLimit &&
             codexUsageLimitResetAt(yield* Ref.get(rateLimitSnapshot)) === null;
           if (!awaitsReset) yield* publishRootTerminal(context, event);
@@ -8081,7 +8077,6 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               agentFeedback: turnInput.agentFeedback ?? "off",
               browserToolsAvailable: mcpSession?.browserToolsAvailable ?? true,
               deviceToolsAvailable: mcpSession?.capabilities?.has("device") ?? false,
-              omitServiceTier: adapterOptions.resolveRuntime !== undefined,
               ...(turnInput.appContext === undefined ? {} : { appContext: turnInput.appContext }),
               ...(configuredReasoningSummary === undefined ? {} : { configuredReasoningSummary }),
             });
@@ -8392,10 +8387,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           threadId: string,
           modelSelection: ModelSelection | undefined,
         ) {
-          const serviceTier =
-            adapterOptions.resolveRuntime === undefined
-              ? getCodexServiceTierOptionValue(modelSelection)
-              : undefined;
+          const serviceTier = getCodexServiceTierOptionValue(modelSelection);
           if (serviceTier === undefined) return;
           const applied = yield* client
             .request("thread/settings/update", { threadId, serviceTier })

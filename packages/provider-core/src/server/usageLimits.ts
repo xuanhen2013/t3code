@@ -51,6 +51,7 @@ export function applyUsageLimitsUpdate(input: {
   readonly previous: ServerProviderUsageLimits | undefined;
   readonly update: ProviderUsageLimitsUpdate;
   readonly checkedAt: string;
+  readonly acceptStreamedUsageLimits?: boolean;
 }): ServerProviderUsageLimits | undefined {
   const { previous, update } = input;
   if (update.windows.length === 0 || previous?.unavailable?.reason === "unsupported") {
@@ -76,7 +77,11 @@ export function applyUsageLimitsUpdate(input: {
       changed = true;
     }
   }
-  if (!changed && previous !== undefined) {
+  if (
+    !changed &&
+    previous !== undefined &&
+    !(input.acceptStreamedUsageLimits && previous.unavailable !== undefined)
+  ) {
     return previous;
   }
   const unavailable =
@@ -85,7 +90,8 @@ export function applyUsageLimitsUpdate(input: {
     ...makeUsageLimits({ checkedAt: input.checkedAt, windows: merged.values() }),
     ...(previous?.resetCredits !== undefined ? { resetCredits: previous.resetCredits } : {}),
     ...(previous?.zeroSpendCap ? { zeroSpendCap: true } : {}),
-    ...(unavailable !== undefined ? { unavailable } : {}),
+    ...(previous?.externalUsage ? { externalUsage: previous.externalUsage } : {}),
+    ...(unavailable !== undefined && !input.acceptStreamedUsageLimits ? { unavailable } : {}),
   };
 }
 

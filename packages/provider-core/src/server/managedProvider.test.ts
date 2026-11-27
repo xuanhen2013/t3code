@@ -972,6 +972,62 @@ describe("makeManagedServerProvider", () => {
     ).pipe(Effect.provide(layerAlwaysRunTest)),
   );
 
+  it.effect("shows streamed limits until the connected account changes", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const probeLimits = {
+          checkedAt: "2026-04-10T00:00:01.000Z",
+          windows: [],
+          unavailable: { reason: "probeFailed" },
+          externalUsage: { label: "ChatGPT usage", url: "https://chatgpt.com/#settings/Usage" },
+        } as const;
+        const profileId = yield* Ref.make("account-a");
+        const provider = yield* makeManagedServerProvider<TestSettings>({
+          resolveMaintenance: () => Effect.succeed(maintenanceCapabilities),
+          getSettings: Effect.succeed({ enabled: true }),
+          streamSettings: Stream.empty,
+          haveSettingsChanged: (previous, next) => previous.enabled !== next.enabled,
+          initialSnapshot: () => Effect.succeed(initialSnapshot),
+          checkProvider: Ref.get(profileId).pipe(
+            Effect.map((profileId): ServerProvider => ({
+              ...refreshedSnapshot,
+              auth: { status: "authenticated", subscriptionSharing: true, profileId },
+              usageLimits: probeLimits,
+            })),
+          ),
+          acceptStreamedUsageLimits: true,
+          refreshOnInterval: false,
+        });
+        yield* Stream.take(provider.streamChanges, 1).pipe(Stream.runDrain);
+        const session = {
+          id: "primary",
+          kind: "session",
+          label: "Session",
+          usedPercent: 40,
+        } as const;
+        const weekly = {
+          id: "secondary",
+          kind: "weekly",
+          label: "Weekly",
+          usedPercent: 20,
+        } as const;
+        const checkedAt = "2026-04-10T00:00:02.000Z";
+        yield* provider.applyUsageLimits({ checkedAt, windows: [session] });
+        yield* provider.applyUsageLimits({ checkedAt, windows: [weekly] });
+        const limits = {
+          checkedAt,
+          windows: [session, weekly],
+          externalUsage: probeLimits.externalUsage,
+        };
+        assert.deepStrictEqual((yield* provider.getSnapshot).usageLimits, limits);
+        assert.deepStrictEqual((yield* provider.refresh).usageLimits, limits);
+
+        yield* Ref.set(profileId, "account-b");
+        assert.deepStrictEqual((yield* provider.refresh).usageLimits, probeLimits);
+      }),
+    ).pipe(Effect.provide(layerAlwaysRunTest)),
+  );
+
   it.effect("keeps sparse usage unavailable after probe failure until a full probe recovers", () =>
     Effect.scoped(
       Effect.gen(function* () {

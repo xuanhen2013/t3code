@@ -286,8 +286,7 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
           ? undefined
           : getModelSelectionStringOptionValue(modelSelection, "reasoningEffort")) ??
         DEFAULT_TEXT_GENERATION_REASONING_EFFORT;
-      const serviceTier =
-        resolved || fellBack ? undefined : getCodexServiceTierOptionValue(modelSelection);
+      const serviceTier = fellBack ? undefined : getCodexServiceTierOptionValue(modelSelection);
       const binary = effectiveConfig.binaryPath || "codex";
       const env = {
         ...codexAppServerEnvironment(effectiveEnvironment),

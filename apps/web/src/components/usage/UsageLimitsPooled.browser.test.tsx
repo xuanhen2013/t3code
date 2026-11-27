@@ -23,7 +23,7 @@ function managedChatGpt(instanceId: string, displayName: string): ServerProvider
     installed: true,
     version: "0.164.0",
     status: "ready",
-    auth: { status: "authenticated" },
+    auth: { status: "authenticated", subscriptionSharing: true },
     checkedAt,
     models: [],
     slashCommands: [],
@@ -31,7 +31,7 @@ function managedChatGpt(instanceId: string, displayName: string): ServerProvider
     usageLimits: {
       checkedAt,
       windows: [],
-      unavailable: { reason: "unsupported", message: "Track usage in ChatGPT." },
+      unavailable: { reason: "probeFailed", message: "Track usage in ChatGPT." },
       externalUsage: { label: "ChatGPT usage", url: CHATGPT_USAGE_URL },
     },
   };
@@ -74,6 +74,7 @@ describe("UsageLimitsPooled next refill", () => {
         usageLimits: {
           checkedAt,
           windows: [{ id: "weekly", label: "Weekly", kind: "weekly", usedPercent, resetsAt }],
+          externalUsage: { label: "ChatGPT usage", url: CHATGPT_USAGE_URL },
         },
       };
     }
@@ -94,6 +95,8 @@ describe("UsageLimitsPooled next refill", () => {
     await using screen = await render(
       <UsageLimitsPooled presentations={presentations} now={Date.parse("2026-10-25T17:30:00Z")} />,
     );
+    await expect.element(screen.getByRole("button", { name: /Work: 80% left/ })).toBeVisible();
+    await expect.element(screen.getByRole("button", { name: /Personal: 40% left/ })).toBeVisible();
     await expect.element(screen.getByText("↻ +30%", { exact: true })).toBeVisible();
     await expect.element(screen.getByText("↻ +30% in 30m")).toBeVisible();
 
