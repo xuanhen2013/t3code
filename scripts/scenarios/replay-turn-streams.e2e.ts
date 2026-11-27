@@ -15,12 +15,15 @@ test(
     await expect(
       screen.getByText("The project has a single math module", { exact: false }),
     ).toBeVisible();
-    await expect(screen.getByText("– tok/s", { exact: true })).toBeVisible();
     await expect(stop).toBeVisible();
+    const estimatedRate = screen.getByText(/^≈ \d+(?:\.\d+)? tok\/s$/);
+    await expect(estimatedRate).toBeVisible();
     await app.screenshot("streaming");
 
     await expect(screen.getByText("This turn is a replay.", { exact: false })).toBeVisible();
     await expect(stop).toBeHidden();
+    await expect(estimatedRate).toBeHidden();
+    await expect(screen.getByText("– tok/s", { exact: true })).toBeVisible();
     await expect(screen.getByText("Give me a short tour").first()).toBeVisible();
     await app.screenshot("finished");
   },

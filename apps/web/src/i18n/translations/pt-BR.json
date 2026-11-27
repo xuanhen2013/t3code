@@ -13019,5 +13019,6 @@
   "5755c03c64f9f184": "{rate} tok/s",
   "5df48397712063f5": "Tokens de entrada, leitura de cache e saída registrados até agora neste turno",
   "48867bb2d5a7d870": "Taxa de saída da última solicitação medida, sem a espera pelo primeiro token",
-  "c2ebc08b959cf3e4": "Taxa de saída da última solicitação medida, incluindo a espera pelo primeiro token"
+  "c2ebc08b959cf3e4": "Taxa de saída da última solicitação medida, incluindo a espera pelo primeiro token",
+  "da7ccb37e764c426": "Estimativa com base no texto recebido no último intervalo"
 }

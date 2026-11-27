@@ -1456,6 +1456,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       {!syncing && (activeMetricsRunId !== null || (isWorking && runlessWorkActive)) ? (
         <LiveAssistantTurnMetrics
           key={`${listIdentityKey}:${activeMetricsRunId ?? "runless"}`}
+          threadRef={citationThreadRef}
           runId={activeMetricsRunId}
           attemptId={activeRunAttemptId}
           timelineEntries={timelineEntries}

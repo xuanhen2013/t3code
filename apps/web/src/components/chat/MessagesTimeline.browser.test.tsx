@@ -37,6 +37,7 @@ import { DEFAULT_CLIENT_SETTINGS } from "@t3tools/contracts/settings";
 
 import "~/index.css";
 
+import { AppAtomRegistryProvider, appAtomRegistry } from "../../rpc/atomRegistry";
 import { environmentThreadDetails } from "../../state/threads";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { MessagesTimeline } from "./MessagesTimeline";
@@ -2533,7 +2534,7 @@ describe("compact reasoning math", () => {
   });
 });
 
-it("keeps measured usage at the turn's tail across tools and reply segments", async () => {
+it("updates the live rate at the turn's tail and switches to measured usage", async () => {
   setup();
   const fixture = makeStreamingTimelineFixture();
   const assistant = fixture.visibleTurnItems[5]!;
@@ -2587,32 +2588,48 @@ it("keeps measured usage at the turn's tail across tools and reply segments", as
     active = false,
     usage?: OrchestrationV2ProviderTurn["recordedModelUsage"],
   ) => (
-    <MessagesTimeline
-      {...props}
-      isWorking={active}
-      runningRunId={active ? fixture.runId : null}
-      activeRunAttemptId={active ? providerTurn.runAttemptId : null}
-      providerTurns={[
-        {
-          ...providerTurn,
-          ...(active ? { status: "running", completedAt: null } : {}),
-          ...(usage === undefined ? {} : { recordedModelUsage: usage }),
-        },
-      ]}
-      timelineEntries={deriveTimelineEntriesFromVisibleTurnItems({
-        visibleTurnItems: [...fixture.visibleTurnItems.slice(0, 5), ...items],
-        optimisticMessages: [],
-      })}
-    />
+    <AppAtomRegistryProvider>
+      <MessagesTimeline
+        {...props}
+        isWorking={active}
+        runningRunId={active ? fixture.runId : null}
+        activeRunAttemptId={active ? providerTurn.runAttemptId : null}
+        providerTurns={[
+          {
+            ...providerTurn,
+            ...(active ? { status: "running", completedAt: null } : {}),
+            ...(usage === undefined ? {} : { recordedModelUsage: usage }),
+          },
+        ]}
+        timelineEntries={deriveTimelineEntriesFromVisibleTurnItems({
+          visibleTurnItems: [...fixture.visibleTurnItems.slice(0, 5), ...items],
+          optimisticMessages: [],
+        })}
+      />
+    </AppAtomRegistryProvider>
   );
+  const streamedText = Atom.make<string | null>(null);
+  using _streamedText = vi
+    .spyOn(environmentThreadDetails, "assistantMessageTextAtom")
+    .mockReturnValue(streamedText);
   await using screen = await renderElement(ui());
   const oldCount = screen.getByText("– tokens", { exact: true });
   await expect.element(oldCount).toBeVisible();
   expect(oldCount.element().parentElement?.textContent).toContain("– tok/s");
 
-  const reply = `Text${"字".repeat(40)}`;
-  await screen.rerender(ui([replyItem(reply, true)], true));
+  using _timers = fakeTimers();
+  const initialReply = "Already received.";
+  await screen.rerender(ui([replyItem(initialReply, true)], true));
   await expect.element(screen.getByText("– tok/s", { exact: true }).last()).toBeVisible();
+  const firstChunk = `${initialReply}${"字".repeat(20)}`;
+  await act(() => appAtomRegistry.set(streamedText, firstChunk));
+  await act(() => vi.advanceTimersByTime(500));
+  await expect.element(screen.getByText("≈ 46 tok/s", { exact: true })).toBeVisible();
+  const reply = `${firstChunk}${"字".repeat(10)}`;
+  await act(() => appAtomRegistry.set(streamedText, reply));
+  await act(() => vi.advanceTimersByTime(500));
+  await expect.element(screen.getByText("≈ 34.5 tok/s", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("– tokens", { exact: true }).last()).toBeVisible();
 
   const first = replyItem(reply, false);
   const firstUsage = {
@@ -2621,6 +2638,7 @@ it("keeps measured usage at the turn's tail across tools and reply segments", as
     latestRequestRate: { tokensPerSecond: 60, timing: "stream" },
   } as const;
   await screen.rerender(ui([first, tool], true, firstUsage));
+  await expect.element(screen.getByText(/^≈ .* tok\/s$/)).not.toBeInTheDocument();
   const toolRow = screen.container.querySelector('[data-timeline-row-kind="work-live"]')!;
   const liveRate = screen.getByText("60 tok/s", { exact: true });
   await expect.element(liveRate).toBeVisible();
@@ -2631,23 +2649,24 @@ it("keeps measured usage at the turn's tail across tools and reply segments", as
 
   const doneTool = { ...tool, item: { ...tool.item, status: "completed" as const } };
   const secondReply = "More. ".repeat(10);
+  await act(() => appAtomRegistry.set(streamedText, null));
+  await screen.rerender(ui([first, doneTool, replyItem("More.", true, true)], true, firstUsage));
+  await expect.element(screen.getByText("– tok/s", { exact: true }).last()).toBeVisible();
+  await act(() => appAtomRegistry.set(streamedText, `More.${"a".repeat(38)}`));
+  await act(() => vi.advanceTimersByTime(500));
+  await expect.element(screen.getByText("≈ 20 tok/s", { exact: true })).toBeVisible();
   const finalUsage = {
     inputTokens: 2_000,
     outputTokens: 720,
     latestRequestRate: { tokensPerSecond: 20, timing: "request" },
   } as const;
   await screen.rerender(
-    ui([first, doneTool, replyItem(secondReply, true, true)], true, finalUsage),
-  );
-  await expect.element(screen.getByText("20 tok/s", { exact: true })).toBeVisible();
-  await expect.element(screen.getByText("2,720 tokens", { exact: true })).toBeVisible();
-
-  await screen.rerender(
     ui([first, doneTool, replyItem(secondReply, false, true)], false, finalUsage),
   );
   const count = screen.getByText("2,720 tokens", { exact: true });
   await expect.element(count).toBeVisible();
   await expect.element(screen.getByText("20 tok/s", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText(/^≈ .* tok\/s$/)).not.toBeInTheDocument();
   expect(count.element().checkVisibility({ opacityProperty: true })).toBe(true);
   const replyRow = screen.container.querySelector('[data-message-id="final-assistant"]')!;
   const copy = replyRow.querySelector('[aria-label="Copy message"]')!;

@@ -13019,5 +13019,6 @@
   "5755c03c64f9f184": "{rate} tok/s",
   "5df48397712063f5": "Jetons d’entrée, de lecture du cache et de sortie enregistrés pour ce tour",
   "48867bb2d5a7d870": "Débit de sortie de la dernière requête mesurée, hors attente du premier jeton",
-  "c2ebc08b959cf3e4": "Débit de sortie de la dernière requête mesurée, attente du premier jeton comprise"
+  "c2ebc08b959cf3e4": "Débit de sortie de la dernière requête mesurée, attente du premier jeton comprise",
+  "da7ccb37e764c426": "Estimation d’après le texte reçu pendant le dernier intervalle"
 }

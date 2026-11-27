@@ -13014,5 +13014,6 @@
   "5755c03c64f9f184": "{rate} tok/s",
   "5df48397712063f5": "Tokens de entrada, de lectura de caché y de salida registrados hasta ahora en este turno",
   "48867bb2d5a7d870": "Velocidad de salida de la última solicitud medida, sin contar la espera hasta el primer token",
-  "c2ebc08b959cf3e4": "Velocidad de salida de la última solicitud medida, contando la espera hasta el primer token"
+  "c2ebc08b959cf3e4": "Velocidad de salida de la última solicitud medida, contando la espera hasta el primer token",
+  "da7ccb37e764c426": "Estimación basada en el texto recibido durante el último intervalo"
 }

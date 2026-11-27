@@ -13019,5 +13019,6 @@
   "5755c03c64f9f184": "{rate} tok/s",
   "5df48397712063f5": "Bisher erfasste Eingabe-, Cache-Lese- und Ausgabetokens dieses Durchlaufs",
   "48867bb2d5a7d870": "Ausgaberate der letzten gemessenen Anfrage ohne Wartezeit bis zum ersten Token",
-  "c2ebc08b959cf3e4": "Ausgaberate der letzten gemessenen Anfrage einschließlich der Wartezeit bis zum ersten Token"
+  "c2ebc08b959cf3e4": "Ausgaberate der letzten gemessenen Anfrage einschließlich der Wartezeit bis zum ersten Token",
+  "da7ccb37e764c426": "Geschätzt anhand des zuletzt empfangenen Textes"
 }
