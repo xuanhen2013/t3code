@@ -6,17 +6,10 @@ import * as NodeSqlite from "node:sqlite";
 import type { OrchestrationV2RecordedModelUsage } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 
-import { bytesAt, fields, nested, numberAt, textAt, type Fields } from "../antigravityProtobuf.ts";
+import { durationFieldMs, fields, nested, numberAt, textAt } from "../antigravityProtobuf.ts";
 import { antigravityManagedPath, antigravityProfileRoot } from "./AntigravityProfilePaths.ts";
 
 const conversationSegments = ["antigravity-acp", "conversations"];
-
-function durationMs(chat: Fields, field: number): number | null {
-  const bytes = bytesAt(chat, field);
-  if (bytes === undefined) return null;
-  const duration = fields(bytes);
-  return numberAt(duration, 1) * 1_000 + numberAt(duration, 2) / 1_000_000;
-}
 
 // Agy PowerTools' request rate: use the decode interval for genuine streams. Short
 // replies and buffered responses need the whole model call, including the first-token wait.
@@ -65,7 +58,7 @@ function decodeRequest(bytes: Uint8Array) {
     requestId,
     inputTokens,
     outputTokens,
-    rate: requestRate(outputTokens, durationMs(chat, 11), durationMs(chat, 12)),
+    rate: requestRate(outputTokens, durationFieldMs(chat, 11), durationFieldMs(chat, 12)),
   };
 }
 

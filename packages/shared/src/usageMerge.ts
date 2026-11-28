@@ -26,6 +26,7 @@ export interface ProviderTotals {
 }
 
 export interface ModelTotals {
+  readonly estimatedTokensPerSecond?: number;
   readonly model: string;
   readonly provider: UsageProviderKind;
   readonly costUsd: number;
@@ -388,6 +389,8 @@ export function mergeUsage(
       costUsd: number;
       totalTokens: number;
       tokens: UsageTokenTotals;
+      timedOutputTokens: number;
+      timedDurationMs: number;
       records: number;
       unpricedRecords: number;
       unpricedTokens: number;
@@ -482,10 +485,14 @@ export function mergeUsage(
           outputTokens: 0,
           reasoningTokens: 0,
         },
+        timedOutputTokens: 0,
+        timedDurationMs: 0,
         records: 0,
         unpricedRecords: 0,
         unpricedTokens: 0,
       };
+      model.timedOutputTokens = model.timedOutputTokens + (bucket.throughput?.outputTokens ?? 0);
+      model.timedDurationMs = model.timedDurationMs + (bucket.throughput?.durationMs ?? 0);
       model.costUsd += bucket.costUsd;
       model.totalTokens += tokens;
       model.tokens = {
@@ -565,6 +572,9 @@ export function mergeUsage(
       unpricedTokens: totals.unpricedTokens,
       costShare: costUsd === 0 ? 0 : totals.costUsd / costUsd,
       tokenShare: totalTokens === 0 ? 0 : totals.totalTokens / totalTokens,
+      ...(totals.timedDurationMs > 0
+        ? { estimatedTokensPerSecond: (totals.timedOutputTokens * 1_000) / totals.timedDurationMs }
+        : {}),
     }))
     .sort((a, b) => b.costUsd - a.costUsd || b.totalTokens - a.totalTokens);
 

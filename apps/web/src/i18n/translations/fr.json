@@ -13048,14 +13048,5 @@
   "0d50b5bfe7151ece": "Impossible de télécharger le fichier",
   "eb1fd384ad5919dd": "Note interne",
   "b45f0b467e9406d0": "Répondre au client",
-  "bf2453fe8e4297d2": "{count} jetons",
-  "42ee26987b45661a": "{count} jetons en sortie",
-  "373b902767887731": "Jetons d’entrée et de sortie de l’agent principal pour ce tour du fournisseur",
-  "ec9955b3ec685da6": "Jetons de sortie indiqués par le fournisseur",
-  "5755c03c64f9f184": "{rate} tok/s",
-  "5df48397712063f5": "Jetons d’entrée, de lecture du cache et de sortie enregistrés pour ce tour",
-  "48867bb2d5a7d870": "Débit de sortie de la dernière requête mesurée, hors attente du premier jeton",
-  "c2ebc08b959cf3e4": "Débit de sortie de la dernière requête mesurée, attente du premier jeton comprise",
-  "da7ccb37e764c426": "Estimation d’après le texte reçu pendant le dernier intervalle",
-  "aeda9e3477dd5410": "Débit de sortie moyen estimé pour le texte de cette réponse"
+  "5755c03c64f9f184": "{rate} tok/s"
 }

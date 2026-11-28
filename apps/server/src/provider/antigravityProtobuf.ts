@@ -60,6 +60,17 @@ export const textAt = (value: Fields, key: number) => {
   const bytes = bytesAt(value, key);
   return bytes === undefined ? "" : new TextDecoder("utf-8", { fatal: true }).decode(bytes).trim();
 };
+export function durationFieldMs(value: Fields, key: number): number | null {
+  const bytes = bytesAt(value, key);
+  if (bytes === undefined) return null;
+  try {
+    const duration = fields(bytes);
+    return numberAt(duration, 1) * 1_000 + numberAt(duration, 2) / 1_000_000;
+  } catch {
+    return null;
+  }
+}
+
 export const timestamp = (value: Fields) => {
   const seconds = numberAt(value, 1);
   return seconds > 0 ? seconds * 1000 + Math.floor(numberAt(value, 2) / 1_000_000) : null;

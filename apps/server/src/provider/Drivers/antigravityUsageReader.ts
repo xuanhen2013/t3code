@@ -2,7 +2,7 @@
 import * as NodeFSP from "node:fs/promises";
 import { pipe } from "effect/Function";
 
-import type { UsageRecord } from "@t3tools/provider-core/server/usage";
+import { estimateUsageThroughput, type UsageRecord } from "@t3tools/provider-core/server/usage";
 import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -13,6 +13,7 @@ import * as SqlClient from "effect/sql/SqlClient";
 
 import {
   bytesAt,
+  durationFieldMs,
   fields,
   nested,
   numberAt,
@@ -147,6 +148,7 @@ interface Metadata {
   modelId: number;
   timestampMs: number | null;
   usages: Fields[];
+  requestDurationMs: number | null;
 }
 
 function metadata(bytes: Uint8Array, step: boolean): Metadata {
@@ -166,7 +168,11 @@ function metadata(bytes: Uint8Array, step: boolean): Metadata {
     if (retryUsage !== undefined) usages.push(fields(retryUsage.slice()));
   }
   const names = [textAt(model, step ? 12 : 19), textAt(model, step ? 8 : 21)].map(modelName);
+  const firstTokenMs = step || primaryUsage === undefined ? null : durationFieldMs(data, 11);
+  const streamingMs = step || primaryUsage === undefined ? null : durationFieldMs(data, 12);
   return {
+    requestDurationMs:
+      firstTokenMs === null || streamingMs === null ? null : firstTokenMs + streamingMs,
     model:
       names.find(isConcreteModel) ?? names.find((name) => name && !/^model[_-]/.test(name)) ?? "",
     modelId:
@@ -344,6 +350,10 @@ function usageCandidates(
           const id = textAt(usage, key);
           return id ? [`antigravity:${key}:${id}`] : [];
         });
+        const throughput =
+          usageIndex === 0 && entry.requestDurationMs !== null
+            ? estimateUsageThroughput(outputTokens, entry.requestDurationMs)
+            : undefined;
         const record: UsageRecord = {
           provider: "antigravity",
           sessionId,
@@ -352,6 +362,7 @@ function usageCandidates(
           totals,
           reportedCostUsd: null,
           speed: "standard",
+          ...(throughput === undefined ? {} : { throughput }),
           dedupeKey: keys[0] ?? `antigravity:${sessionId}:${source}:${index}:${usageIndex}`,
         };
         records.push({
@@ -426,8 +437,11 @@ export const readAntigravityUsage = Effect.fn("readAntigravityUsage")(function* 
         : target;
     const x = target.record.totals;
     const y = source.record.totals;
+    const throughput =
+      first.record.throughput ?? target.record.throughput ?? source.record.throughput;
     target.record = {
       ...first.record,
+      ...(throughput === undefined ? {} : { throughput }),
       model: bestModel.record.model,
       timestampMs: bestTime.record.timestampMs,
       totals: {

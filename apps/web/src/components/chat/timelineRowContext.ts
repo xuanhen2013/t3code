@@ -10,9 +10,7 @@ import type {
 import {
   type EnvironmentId,
   type MessageId,
-  type OrchestrationV2ProviderTurn,
   type OrchestrationV2TurnItem,
-  type ProviderTurnId,
   type RunAttemptId,
   type ScopedThreadRef,
   type ServerProviderSkill,
@@ -67,7 +65,6 @@ export interface TimelineRowSharedState {
   workspaceRoot: string | undefined;
   skills: ReadonlyArray<ServerProviderSkill>;
   runs: ReadonlyArray<HandoffTimelineRun>;
-  providerTurnsById: ReadonlyMap<ProviderTurnId, OrchestrationV2ProviderTurn>;
   activeThreadEnvironmentId: EnvironmentId;
   onRevertToTurnCount: (targetTurnCount: number, messageId: MessageId) => void;
   onUseArtifactTemplate: (template: CodexArtifactTemplate) => void;

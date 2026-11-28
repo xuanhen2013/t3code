@@ -5,6 +5,7 @@ import type {
   UsageReadError,
   UsageSource,
   UsageTokenTotals,
+  UsageThroughputSample,
 } from "@t3tools/contracts";
 import type * as Effect from "effect/Effect";
 import type * as Schema from "effect/Schema";
@@ -22,10 +23,29 @@ export interface UsageRecord {
   readonly cacheCreation1hTokens?: number;
   readonly reportedCostUsd: number | null;
   readonly speed: UsageSpeed;
+  readonly throughput?: UsageThroughputSample;
   /** Number of underlying model requests summed into a turn summary when > 1. */
   readonly modelCalls?: number;
   readonly unresolvedServiceTierTurnId?: string;
   readonly dedupeKey: string | null;
+}
+
+/** CC Switch's eligibility rules for estimated throughput from local request history. */
+export function estimateUsageThroughput(
+  outputTokens: number,
+  durationMs: number,
+): UsageThroughputSample | undefined {
+  if (
+    !Number.isSafeInteger(outputTokens) ||
+    outputTokens < 200 ||
+    !Number.isFinite(durationMs) ||
+    durationMs < 1_000 ||
+    durationMs > 60 * 60 * 1_000 ||
+    outputTokens * 1_000 > 10_000 * durationMs
+  ) {
+    return undefined;
+  }
+  return { outputTokens, durationMs };
 }
 
 export const EMPTY_TOTALS: UsageTokenTotals = {

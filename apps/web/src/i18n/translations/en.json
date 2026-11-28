@@ -13056,14 +13056,5 @@
   "0d50b5bfe7151ece": "Could not download file",
   "eb1fd384ad5919dd": "Internal note",
   "b45f0b467e9406d0": "Reply to customer",
-  "bf2453fe8e4297d2": "{count} tokens",
-  "42ee26987b45661a": "{count} output tokens",
-  "373b902767887731": "Main agent input and output tokens for this provider turn",
-  "ec9955b3ec685da6": "Output tokens reported by the provider",
-  "5755c03c64f9f184": "{rate} tok/s",
-  "5df48397712063f5": "Input, cached input, and output tokens recorded so far for this turn",
-  "48867bb2d5a7d870": "Latest measured request's output rate, excluding time to the first token",
-  "c2ebc08b959cf3e4": "Latest measured request's output rate, including time to the first token",
-  "da7ccb37e764c426": "Estimated from text received during the latest sample",
-  "aeda9e3477dd5410": "Estimated average output rate for this reply's text"
+  "5755c03c64f9f184": "{rate} tok/s"
 }

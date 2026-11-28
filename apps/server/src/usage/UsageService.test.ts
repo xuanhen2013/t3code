@@ -1787,22 +1787,27 @@ describe("UsageService", () => {
     }),
   );
 
-  it.effect("reads shared managed default and disabled extra account history once", () =>
+  it.effect("reads Codex speed across separate and shared account homes", () =>
     Effect.gen(function* () {
       const { home, settings } = yield* setup;
       const summary = yield* Effect.gen(function* () {
-        for (const [id, output] of [
-          ["codex", 17],
-          ["codex-personal", 23],
+        for (const [id, output, directory] of [
+          ["codex", 217, "shared-codex"],
+          ["codex-personal", 223, "shared-codex"],
+          ["codex-work", 300, "work-codex"],
         ] as const) {
-          const sessions = NodePath.join(home, "shared-codex", "sessions");
+          const sessions = NodePath.join(home, directory, "sessions");
           yield* Effect.promise(async () => {
             await NodeFSP.mkdir(sessions, { recursive: true });
             await NodeFSP.writeFile(
               NodePath.join(sessions, `${id}-rollout.jsonl`),
               [
                 { type: "session_meta", payload: { id } },
-                { type: "turn_context", payload: { model: "gpt-5.6-sol" } },
+                {
+                  type: "turn_context",
+                  timestamp: "2026-08-01T09:59:57Z",
+                  payload: { model: "gpt-5.6-sol" },
+                },
                 {
                   type: "event_msg",
                   timestamp: "2026-08-01T10:00:00Z",
@@ -1836,6 +1841,16 @@ describe("UsageService", () => {
                     homePath: NodePath.join(home, "shared-codex"),
                   },
                 },
+                [ProviderInstanceId.make("codex-work")]: {
+                  driver: ProviderDriverKind.make("codex"),
+                  environment: [
+                    {
+                      name: "CODEX_HOME",
+                      value: NodePath.join(home, "work-codex"),
+                      sensitive: false,
+                    },
+                  ],
+                },
                 [ProviderInstanceId.make("codex-personal")]: {
                   driver: ProviderDriverKind.make("codex"),
                   enabled: false,
@@ -1857,12 +1872,21 @@ describe("UsageService", () => {
           }),
         ),
       );
-      assert.strictEqual(totalOutputTokens(summary), 40);
+      assert.strictEqual(totalOutputTokens(summary), 740);
+      assert.deepStrictEqual(
+        summary.buckets
+          .map((bucket) => bucket.throughput)
+          .sort((a, b) => (a?.durationMs ?? 0) - (b?.durationMs ?? 0)),
+        [
+          { outputTokens: 300, durationMs: 3_000 },
+          { outputTokens: 440, durationMs: 6_000 },
+        ],
+      );
       assert.strictEqual(
         summary.sources.filter(
           (source) => source.fingerprint.provider === "codex" && source.status === "ok",
         ).length,
-        1,
+        2,
       );
     }),
   );
@@ -3629,7 +3653,7 @@ describe("UsageService", () => {
             60 + 20 * (version === 4 ? 1 : 2),
           );
           yield* upgraded.awaitPersisted;
-          assert.strictEqual(SCAN_CACHE_FILE_NAME, "usage-scan-cache-v18.json");
+          assert.strictEqual(SCAN_CACHE_FILE_NAME, "usage-scan-cache-v19.json");
           assert.deepStrictEqual(
             (yield* Effect.promise(() => NodeFSP.readdir(stateDir)))
               .filter((name) => name.startsWith("usage-scan-cache"))

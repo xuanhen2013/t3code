@@ -9,16 +9,12 @@ import {
   NodeId,
   ProviderDriverKind,
   ProviderInstanceId,
-  ProviderThreadId,
-  ProviderTurnId,
   RunAttemptId,
   RunId,
   RuntimeRequestId,
   TurnItemId,
   ScheduledTaskId,
   ThreadId,
-  type OrchestrationV2ProjectedTurnItem,
-  type OrchestrationV2ProviderTurn,
   type OrchestrationV2Subagent,
 } from "@t3tools/contracts";
 import { type LegendListRef } from "@legendapp/list/react";
@@ -37,7 +33,6 @@ import { DEFAULT_CLIENT_SETTINGS } from "@t3tools/contracts/settings";
 
 import "~/index.css";
 
-import { AppAtomRegistryProvider, appAtomRegistry } from "../../rpc/atomRegistry";
 import { environmentThreadDetails } from "../../state/threads";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { MessagesTimeline } from "./MessagesTimeline";
@@ -2551,203 +2546,33 @@ describe("compact reasoning math", () => {
   });
 });
 
-it("updates the live rate at the turn's tail and switches to measured usage", async () => {
+it("leaves token metrics out of active and completed responses", async () => {
   setup();
-  const fixture = makeStreamingTimelineFixture();
-  const assistant = fixture.visibleTurnItems[5]!;
-  if (assistant.item.type !== "assistant_message") throw new Error("Expected fixture reply");
-  const item = assistant.item;
-  const providerTurn: OrchestrationV2ProviderTurn = {
-    id: ProviderTurnId.make("live-provider-turn"),
-    providerThreadId: ProviderThreadId.make("metrics-provider-thread"),
-    nodeId: NodeId.make("metrics-root"),
-    runAttemptId: RunAttemptId.make("metrics-attempt"),
-    nativeTurnRef: null,
-    ordinal: 1,
-    status: "completed",
-    startedAt: DateTime.makeUnsafe(fixture.time(5)),
-    completedAt: DateTime.makeUnsafe(fixture.time(15)),
-  };
   const props = baseProps();
-  const replyItem = (text: string, streaming: boolean, final = false) => ({
-    ...assistant,
-    position: final ? assistant.position + 2 : assistant.position,
-    sourceItemId: final ? TurnItemId.make("final-assistant-item") : assistant.sourceItemId,
-    item: {
-      ...item,
-      ...(final
-        ? {
-            ...fixture.base("final-assistant-item", fixture.runId, 9),
-            messageId: MessageId.make("final-assistant"),
-          }
-        : {}),
-      providerTurnId: providerTurn.id,
-      text,
-      streaming,
-      status: streaming ? ("running" as const) : ("completed" as const),
-    },
+  const runId = RunId.make("reply-run");
+  const timeline = (streaming: boolean) => (
+    <MessagesTimeline
+      {...props}
+      isWorking={streaming}
+      runningRunId={streaming ? runId : null}
+      timelineEntries={[
+        message("Prompt"),
+        message("Example response", { role: "assistant", runId, streaming }, "reply"),
+      ]}
+    />
+  );
+  await using screen = await renderElement(timeline(true));
+  const metrics = screen.getByText(/^– (?:tokens|tok\/s)$/).first();
+  await expect.element(screen.getByText("Example response")).toBeVisible();
+  await expect.element(metrics).not.toBeInTheDocument();
+
+  await screen.rerender(timeline(false));
+  await vi.waitFor(() => {
+    expect(
+      screen.container.querySelector('[data-message-id="reply"] button[aria-label="Copy message"]'),
+    ).not.toBeNull();
   });
-  const trailingTool = fixture.visibleTurnItems[4]!;
-  if (trailingTool.item.type !== "dynamic_tool") throw new Error("Expected fixture tool");
-  const tool = {
-    ...trailingTool,
-    position: assistant.position + 1,
-    sourceItemId: TurnItemId.make("trailing-tool"),
-    item: {
-      ...trailingTool.item,
-      ...fixture.base("trailing-tool", fixture.runId, 8),
-      status: "running" as const,
-      completedAt: null,
-    },
-  };
-  const ui = (
-    items: ReadonlyArray<OrchestrationV2ProjectedTurnItem> = [],
-    active = false,
-    usage?: OrchestrationV2ProviderTurn["recordedModelUsage"],
-  ) => (
-    <AppAtomRegistryProvider>
-      <MessagesTimeline
-        {...props}
-        isWorking={active}
-        runningRunId={active ? fixture.runId : null}
-        activeRunAttemptId={active ? providerTurn.runAttemptId : null}
-        providerTurns={[
-          {
-            ...providerTurn,
-            ...(active ? { status: "running", completedAt: null } : {}),
-            ...(usage === undefined ? {} : { recordedModelUsage: usage }),
-          },
-        ]}
-        timelineEntries={deriveTimelineEntriesFromVisibleTurnItems({
-          visibleTurnItems: [...fixture.visibleTurnItems.slice(0, 5), ...items],
-          optimisticMessages: [],
-        })}
-      />
-    </AppAtomRegistryProvider>
-  );
-  const streamedText = Atom.make<string | null>(null);
-  using _streamedText = vi
-    .spyOn(environmentThreadDetails, "assistantMessageTextAtom")
-    .mockReturnValue(streamedText);
-  await using screen = await renderElement(ui());
-  const oldCount = screen.getByText("– tokens", { exact: true });
-  await expect.element(oldCount).toBeVisible();
-  expect(oldCount.element().parentElement?.textContent).toContain("– tok/s");
-
-  using _timers = fakeTimers();
-  const initialReply = "Already received.";
-  await screen.rerender(ui([replyItem(initialReply, true)], true));
-  await expect.element(screen.getByText("– tok/s", { exact: true }).last()).toBeVisible();
-  const firstChunk = `${initialReply}${"字".repeat(20)}`;
-  await act(() => appAtomRegistry.set(streamedText, firstChunk));
-  await expect.element(screen.getByText(/^≈ .* tok\/s$/)).not.toBeInTheDocument();
-  await act(() => vi.advanceTimersByTime(500));
-  const reply = `${firstChunk}${"字".repeat(10)}`;
-  await act(() => appAtomRegistry.set(streamedText, reply));
-  await expect.element(screen.getByText("≈ 23 tok/s", { exact: true })).toBeVisible();
-  await act(() => vi.advanceTimersByTime(500));
-  await expect.element(screen.getByText("≈ 23 tok/s", { exact: true })).toBeVisible();
-  await act(() => vi.advanceTimersByTime(1_000));
-  await expect.element(screen.getByText("≈ 23 tok/s", { exact: true })).not.toBeInTheDocument();
-  await expect.element(screen.getByText("– tok/s", { exact: true }).last()).toBeVisible();
-  await expect.element(screen.getByText("– tokens", { exact: true }).last()).toBeVisible();
-
-  const first = replyItem(reply, false);
-  const firstUsage = {
-    inputTokens: 1_000,
-    outputTokens: 120,
-    latestRequestRate: { tokensPerSecond: 60, timing: "stream" },
-  } as const;
-  await screen.rerender(ui([first, tool], true, firstUsage));
-  await expect.element(screen.getByText(/^≈ .* tok\/s$/)).not.toBeInTheDocument();
-  const toolRow = screen.container.querySelector('[data-timeline-row-kind="work-live"]')!;
-  const liveRate = screen.getByText("60 tok/s", { exact: true });
-  await expect.element(liveRate).toBeVisible();
-  await expect.element(screen.getByText("1,120 tokens", { exact: true })).toBeVisible();
-  expect(
-    toolRow.compareDocumentPosition(liveRate.element()) & Node.DOCUMENT_POSITION_FOLLOWING,
-  ).toBeTruthy();
-
-  const doneTool = { ...tool, item: { ...tool.item, status: "completed" as const } };
-  const secondReply = "More. ".repeat(10);
-  await act(() => appAtomRegistry.set(streamedText, null));
-  await screen.rerender(ui([first, doneTool, replyItem("More.", true, true)], true, firstUsage));
-  await expect.element(screen.getByText("– tok/s", { exact: true }).last()).toBeVisible();
-  await act(() => appAtomRegistry.set(streamedText, `More.${"a".repeat(38)}`));
-  await act(() => vi.advanceTimersByTime(500));
-  await act(() => appAtomRegistry.set(streamedText, `More.${"a".repeat(76)}`));
-  await expect.element(screen.getByText("≈ 20 tok/s", { exact: true })).toBeVisible();
-  const finalUsage = {
-    inputTokens: 2_000,
-    outputTokens: 720,
-    latestRequestRate: { tokensPerSecond: 20, timing: "request" },
-  } as const;
-  await screen.rerender(
-    ui([first, doneTool, replyItem(secondReply, false, true)], false, finalUsage),
-  );
-  const count = screen.getByText("2,720 tokens", { exact: true });
-  await expect.element(count).toBeVisible();
-  await expect.element(screen.getByText("20 tok/s", { exact: true })).toBeVisible();
-  await expect.element(screen.getByText(/^≈ .* tok\/s$/)).not.toBeInTheDocument();
-  expect(count.element().checkVisibility({ opacityProperty: true })).toBe(true);
-  const replyRow = screen.container.querySelector('[data-message-id="final-assistant"]')!;
-  const copy = replyRow.querySelector('[aria-label="Copy message"]')!;
-  const copyRect = copy.getBoundingClientRect();
-  const countRect = count.element().getBoundingClientRect();
-  expect(countRect.left).toBeGreaterThan(copyRect.right);
-  expect(countRect.top + countRect.height / 2).toBeCloseTo(copyRect.top + copyRect.height / 2);
-});
-
-it("estimates the speed of a completed Codex reply using the reply's own duration", async () => {
-  setup();
-  const fixture = makeStreamingTimelineFixture();
-  const assistant = fixture.visibleTurnItems[5]!;
-  if (assistant.item.type !== "assistant_message") throw new Error("Expected fixture reply");
-  const providerTurnId = ProviderTurnId.make("codex-metrics-turn");
-  const item = {
-    ...assistant.item,
-    providerTurnId,
-    nativeItemRef: {
-      driver: ProviderDriverKind.make("codex"),
-      nativeId: "codex-reply",
-      strength: "strong" as const,
-    },
-    text: "字".repeat(100),
-    streaming: false,
-    status: "completed" as const,
-    startedAt: DateTime.makeUnsafe(fixture.time(7)),
-    completedAt: DateTime.makeUnsafe(fixture.time(9)),
-  };
-  await using screen = await renderTimeline(
-    deriveTimelineEntriesFromVisibleTurnItems({
-      visibleTurnItems: [...fixture.visibleTurnItems.slice(0, 5), { ...assistant, item }],
-      optimisticMessages: [],
-    }),
-    {
-      providerTurns: [
-        {
-          id: providerTurnId,
-          providerThreadId: ProviderThreadId.make("codex-metrics-thread"),
-          nodeId: NodeId.make("codex-metrics-node"),
-          runAttemptId: null,
-          nativeTurnRef: null,
-          ordinal: 1,
-          status: "completed",
-          startedAt: DateTime.makeUnsafe(fixture.time(5)),
-          completedAt: item.completedAt,
-          turnTokenUsage: {
-            usageStatus: "complete",
-            usageScope: "main_agent",
-            hasSubagents: false,
-            inputTokens: 1_000,
-            outputTokens: 200,
-          },
-        },
-      ],
-    },
-  );
-  await expect.element(screen.getByText("1,200 tokens", { exact: true })).toBeVisible();
-  await expect.element(screen.getByText("≈ 57.5 tok/s", { exact: true })).toBeVisible();
+  await expect.element(metrics).not.toBeInTheDocument();
 });
 
 it("renders automatic compaction as one live divider that finishes with its reason and token delta", async () => {

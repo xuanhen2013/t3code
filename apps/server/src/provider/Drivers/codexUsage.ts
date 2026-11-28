@@ -4,6 +4,7 @@ import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 
 import {
+  estimateUsageThroughput,
   parseTimestampMs,
   type ProviderUsageReader,
   type TranscriptUsageFormat,
@@ -133,6 +134,14 @@ function discardedRequests(
  * Codex `token_count` events carry no model or service tier, so both are carried forward: the model
  * from the most recent `turn_context`, the tier from the most recent `thread_settings_applied`.
  */
+const CodexRequestClock = Schema.Struct({
+  boundaryMs: Schema.Finite,
+  settledMs: Schema.optionalKey(Schema.Finite),
+  startedMs: Schema.optionalKey(Schema.Finite),
+  outputMs: Schema.optionalKey(Schema.Finite),
+  toolMs: Schema.optionalKey(Schema.Finite),
+});
+
 export const CodexScanState = Schema.Struct({
   model: Schema.mutableKey(Schema.String),
   speed: Schema.mutableKey(CodexSpeed),
@@ -151,6 +160,7 @@ export const CodexScanState = Schema.Struct({
   malformedRecordTimestamps: Schema.mutableKey(
     Schema.optionalKey(Schema.mutable(Schema.Array(Schema.Finite))),
   ),
+  requestClock: Schema.mutableKey(Schema.optionalKey(CodexRequestClock)),
   sawSessionMeta: Schema.mutableKey(Schema.Boolean),
   modelProvider: Schema.mutableKey(Schema.String),
   turnId: Schema.mutableKey(Schema.String),
@@ -224,6 +234,86 @@ function parseCodexRecord(parsed: unknown, state: CodexScanState): readonly Usag
   const payload = record["payload"];
   if (typeof payload !== "object" || payload === null) return [];
   const payloadRecord = payload as Record<string, unknown>;
+  const kind = record["type"];
+  const timestampMs = parseTimestampMs(record["timestamp"]);
+  if (timestampMs === null) {
+    if (kind === "turn_context") delete state.requestClock;
+    return parseCodexUsageEvent(record, payloadRecord, state);
+  }
+
+  noteCodexRequestEvent(state, timestampMs, kind, payloadRecord);
+  const forkReplay = state.suppressingForkCopies;
+  const records = parseCodexUsageEvent(record, payloadRecord, state);
+  const request = records.at(-1);
+  if (request === undefined || request.timestampMs !== timestampMs) return records;
+
+  const clock = state.requestClock;
+  state.requestClock = {
+    boundaryMs: Math.max(clock?.boundaryMs ?? timestampMs, timestampMs),
+    settledMs: timestampMs,
+  };
+  if (clock === undefined || forkReplay) return records;
+  const endMs =
+    kind !== "token_usage_record" && clock.toolMs !== undefined && clock.outputMs !== undefined
+      ? clock.outputMs
+      : timestampMs;
+  const throughput = estimateUsageThroughput(
+    request.totals.outputTokens,
+    endMs - (clock.startedMs ?? clock.boundaryMs),
+  );
+  return throughput === undefined ? records : [...records.slice(0, -1), { ...request, throughput }];
+}
+
+function noteCodexRequestEvent(
+  state: CodexScanState,
+  timestampMs: number,
+  kind: unknown,
+  payload: Record<string, unknown>,
+) {
+  const type = payload["type"];
+  const clock = state.requestClock;
+  if (kind === "event_msg") {
+    if (type === "turn_aborted" || type === "task_complete") delete state.requestClock;
+    if (type === "task_started") state.requestClock = { boundaryMs: timestampMs };
+    return;
+  }
+
+  if (kind === "turn_context") {
+    state.requestClock = { boundaryMs: timestampMs };
+    return;
+  }
+  if (kind !== "response_item" || typeof type !== "string") return;
+  const toolOutput = type.endsWith("_output");
+  const message = type === "message";
+  if (toolOutput || (message && payload["role"] !== "assistant")) {
+    state.requestClock = {
+      ...clock,
+      boundaryMs: Math.max(clock?.boundaryMs ?? timestampMs, timestampMs),
+      ...(toolOutput && clock?.outputMs !== undefined ? { toolMs: timestampMs } : {}),
+    };
+    return;
+  }
+  if (!message && type !== "reasoning" && !type.endsWith("_call")) return;
+  if (
+    clock === undefined ||
+    (clock.startedMs === undefined &&
+      clock.settledMs !== undefined &&
+      timestampMs - clock.settledMs <= 100)
+  ) {
+    return;
+  }
+  state.requestClock = {
+    boundaryMs: clock.boundaryMs,
+    startedMs: clock.startedMs ?? clock.boundaryMs,
+    outputMs: timestampMs,
+  };
+}
+
+function parseCodexUsageEvent(
+  record: Record<string, unknown>,
+  payloadRecord: Record<string, unknown>,
+  state: CodexScanState,
+): readonly UsageRecord[] {
   const payloadType = payloadRecord["type"];
 
   if (record["type"] === "session_meta") {
@@ -499,6 +589,7 @@ export const codexUsageFormat: TranscriptUsageFormat<CodexScanState> = {
       model_provider: true,
       turn_id: true,
       response_id: true,
+      role: true,
       model: true,
       thread_settings: { service_tier: true },
       forked_from_id: true,
@@ -514,6 +605,10 @@ export const codexUsageFormat: TranscriptUsageFormat<CodexScanState> = {
     '"turn_context"',
     '"thread_settings_applied"',
     '"session_meta"',
+    '"response_item"',
+    '"task_started"',
+    '"task_complete"',
+    '"turn_aborted"',
   ],
   parseLine: parseCodexLine,
   parseProjected: parseCodexRecord,

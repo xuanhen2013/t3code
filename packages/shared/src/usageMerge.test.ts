@@ -82,6 +82,42 @@ function environment(id: string, usageSummary: UsageSummary): EnvironmentUsage {
 }
 
 describe("mergeUsage", () => {
+  it("weights model throughput by eligible request time across sources", () => {
+    const merged = mergeUsage(
+      [
+        environment(
+          "first",
+          summary(
+            [
+              bucket({
+                provider: "codex",
+                model: "gpt-6-astra",
+                throughput: { outputTokens: 200, durationMs: 1_000 },
+              }),
+              bucket({ provider: "codex", model: "gpt-6-astra" }),
+            ],
+            [{ provider: "codex", hostId: "first", homePath: "/first" }],
+          ),
+        ),
+        environment(
+          "second",
+          summary(
+            [
+              bucket({
+                provider: "codex",
+                model: "gpt-6-astra",
+                throughput: { outputTokens: 300, durationMs: 4_000 },
+              }),
+            ],
+            [{ provider: "codex", hostId: "second", homePath: "/second" }],
+          ),
+        ),
+      ],
+      USAGE_CONTRACT_VERSION,
+    );
+    expect(merged.models[0]?.estimatedTokensPerSecond).toBe(100);
+  });
+
   it("counts a Cursor account once across servers while retaining each server's other providers", () => {
     const account = {
       provider: "cursor" as const,

@@ -72,6 +72,25 @@ describe("parseCodexLine", () => {
     expect(record?.totals.uncachedInputTokens).toBe(19239 - 11008);
     expect(record?.totals.cachedInputTokens).toBe(11008);
     expect(record?.totals.reasoningTokens).toBe(116);
+    expect(record?.throughput).toEqual({ outputTokens: 299, durationMs: 7_225 });
+  });
+
+  it("excludes the tool run from a delayed legacy usage event", () => {
+    const state = initialCodexScanState();
+    parseCodexLine(turnContext, state);
+    for (const [type, timestamp] of [
+      ["function_call", "2026-08-01T05:17:46.694Z"],
+      ["function_call_output", "2026-08-01T05:17:49.900Z"],
+    ]) {
+      parseCodexLine(
+        JSON.stringify({ type: "response_item", timestamp, payload: { type } }),
+        state,
+      );
+    }
+    expect(parseCodexLine(tokenCount(100, 0, 300, 0), state)?.throughput).toEqual({
+      outputTokens: 300,
+      durationMs: 4_000,
+    });
   });
 
   it("skips a repeated token_count so deltas are not double counted", () => {

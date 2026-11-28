@@ -50,6 +50,12 @@ export const UsageCategoryCost = Schema.Struct({
 });
 export type UsageCategoryCost = typeof UsageCategoryCost.Type;
 
+export const UsageThroughputSample = Schema.Struct({
+  outputTokens: NonNegativeInt,
+  durationMs: Schema.Finite.check(Schema.isGreaterThan(0)),
+});
+export type UsageThroughputSample = typeof UsageThroughputSample.Type;
+
 export const UsageBucket = Schema.Struct({
   day: UsageDay,
   hourStart: Schema.optional(TrimmedNonEmptyString),
@@ -63,6 +69,7 @@ export const UsageBucket = Schema.Struct({
   fastCostUsd: Schema.optional(Schema.Number),
   ultrafastCostUsd: Schema.optional(Schema.Number),
   speedPremiumUsd: Schema.optional(Schema.Number),
+  throughput: Schema.optionalKey(UsageThroughputSample),
   costSource: UsageCostSource,
   records: NonNegativeInt,
   unpricedRecords: NonNegativeInt,

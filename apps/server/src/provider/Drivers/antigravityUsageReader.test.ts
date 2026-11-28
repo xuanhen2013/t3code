@@ -336,7 +336,13 @@ describe("readAntigravityUsage", () => {
             new Uint8Array(
               protoBytes(1, [
                 ...protoText(19, "Gemini 3.8 Flash High"),
-                ...protoBytes(4, [...protoNumber(2, 100), ...protoText(11, "response")]),
+                ...protoBytes(11, protoNumber(1, 2)),
+                ...protoBytes(12, protoNumber(1, 4)),
+                ...protoBytes(4, [
+                  ...protoNumber(2, 100),
+                  ...protoNumber(3, 300),
+                  ...protoText(11, "response"),
+                ]),
               ]),
             ),
           ]);
@@ -353,6 +359,10 @@ describe("readAntigravityUsage", () => {
           ["gemini-3.8-flash-high", "gemini-3.8-flash"],
         ],
       );
+      assert.deepStrictEqual(records(result).at(-1)?.throughput, {
+        outputTokens: 300,
+        durationMs: 6_000,
+      });
       const table = parseRateTable({
         "gemini-3.7-flash": { input_cost_per_token: 0.75e-6, output_cost_per_token: 3.75e-6 },
         "gemini-3.8-flash": { input_cost_per_token: 0.75e-6, output_cost_per_token: 3.75e-6 },
@@ -363,7 +373,7 @@ describe("readAntigravityUsage", () => {
         priced.map(({ costSource }) => costSource),
         Array(4).fill("modelPriced"),
       );
-      for (const [index, expected] of [7.5e-6, 8.25e-6, 6e-6, 75e-6].entries()) {
+      for (const [index, expected] of [7.5e-6, 8.25e-6, 6e-6, 1_200e-6].entries()) {
         assert.closeTo(priced[index]!.costUsd, expected, 1e-12);
       }
     }).pipe(Effect.provide(NodeServices.layer)),

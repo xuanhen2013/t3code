@@ -7,6 +7,7 @@ import type {
   UsageModelSelector,
   UsageResolution,
   UsageTokenTotals,
+  UsageThroughputSample,
 } from "@t3tools/contracts";
 
 import { EMPTY_TOTALS, type UsageRecord } from "@t3tools/provider-core/server/usage";
@@ -56,6 +57,7 @@ interface MutableBucket {
   fastCostUsd: number;
   ultrafastCostUsd: number;
   speedPremiumUsd: number;
+  throughput: UsageThroughputSample | undefined;
   records: number;
   unpricedRecords: number;
   unpricedTokens: number;
@@ -180,7 +182,8 @@ export function mergeUsageCopies(held: UsageRecord, copy: UsageRecord): UsageRec
     b.reasoningTokens <= a.reasoningTokens &&
     (copy.cacheCreation1hTokens ?? 0) <= (held.cacheCreation1hTokens ?? 0) &&
     copyModelCalls <= heldModelCalls &&
-    reportedCostUsd === held.reportedCostUsd
+    reportedCostUsd === held.reportedCostUsd &&
+    (held.throughput !== undefined || copy.throughput === undefined)
   ) {
     return held;
   }
@@ -190,6 +193,9 @@ export function mergeUsageCopies(held: UsageRecord, copy: UsageRecord): UsageRec
   );
   return {
     ...held,
+    ...(held.throughput === undefined && copy.throughput !== undefined
+      ? { throughput: copy.throughput }
+      : {}),
     ...(cacheCreation1hTokens > 0 ? { cacheCreation1hTokens } : {}),
     ...(modelCalls > 1 ? { modelCalls } : {}),
     totals: {
@@ -356,6 +362,12 @@ export class UsageAggregator {
       record,
       this.#options.priceOverrides,
     );
+    if (record.throughput !== undefined) {
+      bucket.throughput = {
+        outputTokens: (bucket.throughput?.outputTokens ?? 0) + record.throughput.outputTokens,
+        durationMs: (bucket.throughput?.durationMs ?? 0) + record.throughput.durationMs,
+      };
+    }
     bucket.records += 1;
     if (priced.costSource === "unpriced") {
       bucket.unpricedRecords += 1;
@@ -413,6 +425,7 @@ export class UsageAggregator {
         fastCostUsd: 0,
         ultrafastCostUsd: 0,
         speedPremiumUsd: 0,
+        throughput: undefined,
         records: 0,
         unpricedRecords: 0,
         unpricedTokens: 0,
@@ -460,6 +473,7 @@ export class UsageAggregator {
         ...(fastCostUsd === 0 ? {} : { fastCostUsd }),
         ...(ultrafastCostUsd === 0 ? {} : { ultrafastCostUsd }),
         ...(speedPremiumUsd === 0 ? {} : { speedPremiumUsd }),
+        ...(bucket.throughput === undefined ? {} : { throughput: bucket.throughput }),
         costSource: resolveCostSource(bucket),
         records: bucket.records,
         unpricedRecords: bucket.unpricedRecords,

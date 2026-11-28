@@ -17,7 +17,6 @@ import {
   type AssistantCitation,
   type EnvironmentId,
   type MessageId,
-  type OrchestrationV2ProviderTurn,
   type OrchestrationV2TurnItem,
   type RunAttemptId,
   type ServerProviderSkill,
@@ -93,7 +92,6 @@ import {
   TIMELINE_MINIMAP_TARGET_OFFSET,
   timelineTurnFoldRunIdsByEntryId,
   liveAnswerPreview,
-  deriveUnsettledRunId,
   type MessagesTimelineRow,
   type TimelineLatestRun,
 } from "./MessagesTimeline.logic";
@@ -136,7 +134,6 @@ import {
   SentMessageTimelineRow,
   McpAppTimelineRow,
 } from "./TimelineAssistantRows";
-import { LiveAssistantTurnMetrics } from "./AssistantTurnMetrics";
 import { V2EventTimelineRow } from "./TimelineV2EventRow";
 import { startTimelinePositionRestore } from "./useTimelinePositionRestore";
 import {
@@ -329,8 +326,6 @@ interface MessagesTimelineProps {
   workspaceRoot: string | undefined;
   skills?: ReadonlyArray<ServerProviderSkill>;
   runs: ReadonlyArray<HandoffTimelineRun>;
-  providerTurns?: ReadonlyArray<OrchestrationV2ProviderTurn> | undefined;
-  activeRunAttemptId?: RunAttemptId | null;
   anchorMessageId: MessageId | null;
   onAnchorReady: (messageId: MessageId, anchorIndex: number) => void;
   onAnchorSizeChanged: (messageId: MessageId, size: number) => void;
@@ -434,8 +429,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
   workspaceRoot,
   skills = EMPTY_TIMELINE_SKILLS,
   runs: runsProp,
-  providerTurns,
-  activeRunAttemptId = null,
   anchorMessageId,
   onAnchorReady,
   onAnchorSizeChanged,
@@ -1141,7 +1134,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
       .filter(isVisiblePendingApproval)
       .map((approval) => [approval.requestId, approval]),
   );
-  const providerTurnsById = new Map(providerTurns?.map((turn) => [turn.id, turn]));
   const sharedState: TimelineRowSharedState = {
     pendingApprovals: pendingApprovalsByRequestId,
     respondingRequestIds,
@@ -1158,7 +1150,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     workspaceRoot,
     skills,
     runs,
-    providerTurnsById,
     activeThreadEnvironmentId,
     onRevertToTurnCount,
     onRunShellCommand,
@@ -1439,7 +1430,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     </TimelineRowCtx>
   );
   const listExtraData = { identity: listIdentityKey, rowCount: rows.length, sharedState };
-  const activeMetricsRunId = deriveUnsettledRunId(latestRun, runningRunId);
   const timelineListFooter = (
     <TimelineListFooter
       composerInset={anchoredEndSpace ? 0 : contentInsetEndAdjustment}
@@ -1458,16 +1448,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
             </div>
           </div>
         </TimelineRowCtx>
-      ) : null}
-      {!syncing && (activeMetricsRunId !== null || (isWorking && runlessWorkActive)) ? (
-        <LiveAssistantTurnMetrics
-          key={`${listIdentityKey}:${activeMetricsRunId ?? "runless"}`}
-          threadRef={citationThreadRef}
-          runId={activeMetricsRunId}
-          attemptId={activeRunAttemptId}
-          timelineEntries={timelineEntries}
-          providerTurnsById={providerTurnsById}
-        />
       ) : null}
     </TimelineListFooter>
   );

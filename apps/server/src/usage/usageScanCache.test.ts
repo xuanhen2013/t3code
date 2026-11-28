@@ -72,6 +72,7 @@ describe("scan cache round trip", () => {
             model: "claude-opus-5-5",
             speed: "fast",
             cacheCreation1hTokens: 8,
+            throughput: { outputTokens: 300, durationMs: 4_500 },
           }),
         ],
       ],
@@ -271,7 +272,7 @@ describe("scan cache round trip", () => {
     },
   );
 
-  it("re-parses a v14 Codex entry that skipped records and restarts a clean one when it grows", () => {
+  it("re-parses v14 Codex entries for request timing and retains history", () => {
     const codex = (malformedRecords: readonly number[]): CachedFile => ({
       size: 10,
       mtimeMs: 100,
@@ -295,9 +296,9 @@ describe("scan cache round trip", () => {
       size: -1,
       position: { resumeOffset: 0, guardLength: 0, guardHash: 0, state: null },
     });
-    // Served while unchanged, but its state predates the latest snapshot time, so it cannot resume.
     expect(restored.get("/clean-codex.jsonl")).toEqual({
       ...codex([]),
+      size: -1,
       position: { resumeOffset: 0, guardLength: 0, guardHash: 0, state: null },
     });
     // The migrated entries persist without a state and load again under the current version.
@@ -306,7 +307,7 @@ describe("scan cache round trip", () => {
     );
   });
 
-  it("restarts a grown v15 Codex entry, whose baseline time can be older than its totals", () => {
+  it("re-parses a v15 Codex entry for request timing", () => {
     const request = {
       input_tokens: 100,
       cached_input_tokens: 0,
@@ -337,6 +338,7 @@ describe("scan cache round trip", () => {
       decodeScanCache({ ...current, version: 15 }, TEST_FORMAT_MAP).get("/codex.jsonl"),
     ).toEqual({
       ...entry,
+      size: -1,
       position: { resumeOffset: 0, guardLength: 0, guardHash: 0, state: null },
     });
     expect(decodeScanCache(current, TEST_FORMAT_MAP).get("/codex.jsonl")).toEqual(entry);

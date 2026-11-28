@@ -938,7 +938,10 @@ function UsageOverview({
                 <th className="hidden py-2 pl-6 font-normal sm:table-cell">
                   <T context="column heading, percentage share">Share</T>
                 </th>
-                <th className="py-2 pr-2 pl-6 font-normal">
+                <th className="py-2 pl-3 font-normal sm:pl-6">
+                  {gt("Speed", { $context: "model option name" })}
+                </th>
+                <th className="py-2 pr-2 pl-3 font-normal sm:pl-6">
                   <T>Tokens</T>
                 </th>
               </tr>
@@ -946,7 +949,7 @@ function UsageOverview({
             <tbody>
               {breakdownModels.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-muted-foreground">
+                  <td colSpan={6} className="py-6 text-center text-muted-foreground">
                     <T>No activity in this window.</T>
                   </td>
                 </tr>
@@ -999,7 +1002,16 @@ function UsageOverview({
                       <td className={cn("hidden py-2.5 pl-6 sm:table-cell", rowFigures)}>
                         {share === null ? "" : formatPercent(share)}
                       </td>
-                      <td className={cn("py-2.5 pr-2 pl-6", rowFigures)}>
+                      <td className={cn("py-2.5 pl-3 sm:pl-6", rowFigures)}>
+                        {model.estimatedTokensPerSecond === undefined
+                          ? "–"
+                          : `≈ ${gt("{rate} tok/s", {
+                              rate: model.estimatedTokensPerSecond.toLocaleString(locale, {
+                                maximumFractionDigits: model.estimatedTokensPerSecond < 1 ? 1 : 0,
+                              }),
+                            })}`}
+                      </td>
+                      <td className={cn("py-2.5 pr-2 pl-3 sm:pl-6", rowFigures)}>
                         {formatTokens(model.totalTokens)}
                       </td>
                     </tr>
