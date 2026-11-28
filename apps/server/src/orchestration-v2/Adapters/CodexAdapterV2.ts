@@ -927,6 +927,7 @@ export const buildCodexTurnStartParams = Effect.fn("CodexAdapterV2.buildCodexTur
     readonly agentFeedback?: AgentFeedbackMode;
     readonly browserToolsAvailable?: boolean;
     readonly deviceToolsAvailable?: boolean;
+    readonly subscriptionSharing?: boolean;
     readonly appContext?: ProviderAdapter.ProviderAdapterV2TurnInput["appContext"];
     /** Set only for a model that offers Cyber Access; custom models never do. */
     readonly cyberAccess?: { readonly defaultProgram: string | undefined } | undefined;
@@ -8180,6 +8181,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               agentFeedback: turnInput.agentFeedback ?? "off",
               browserToolsAvailable: mcpSession?.browserToolsAvailable ?? true,
               deviceToolsAvailable: mcpSession?.capabilities?.has("device") ?? false,
+              subscriptionSharing: adapterOptions.resolveRuntime !== undefined,
               ...(turnInput.appContext === undefined ? {} : { appContext: turnInput.appContext }),
               ...(configuredReasoningSummary === undefined ? {} : { configuredReasoningSummary }),
             });
