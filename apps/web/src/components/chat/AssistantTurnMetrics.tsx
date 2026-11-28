@@ -1,27 +1,35 @@
 import type {
   OrchestrationV2ProviderTurn,
+  OrchestrationV2TurnItem,
   ProviderTurnId,
   RunAttemptId,
   RunId,
   ScopedThreadRef,
 } from "@t3tools/contracts";
 import { formatCount } from "@t3tools/shared/usageFormat";
+import * as DateTime from "effect/DateTime";
 import { useGT, useLocale } from "gt-react";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TimelineEntry } from "../../session-logic";
 import { useAssistantMessageText } from "../../state/entities";
 import { SharedTooltipTrigger } from "../ui/shared-tooltip";
 import { timelineEntryStartsResponse } from "./MessagesTimeline.logic";
 
 const UNAVAILABLE = "–";
-const RATE_SAMPLE_MS = 500;
+const RATE_WINDOW_MS = 4_000;
+const MIN_SAMPLE_MS = 250;
+const RATE_IDLE_MS = 1_500;
+const MIN_REPLY_TOKENS = 20;
+const MIN_REPLY_DURATION_MS = 500;
 
 export function AssistantTurnMetrics({
   providerTurn,
+  reply,
   estimatedRate,
 }: {
   providerTurn?: OrchestrationV2ProviderTurn | undefined;
-  /** Null while the active stream has no sample. Omit it to show the recorded request rate. */
+  reply?: OrchestrationV2TurnItem | undefined;
+  /** Null before an active stream has a sample. Omit it to show the settled reply's rate. */
   estimatedRate?: number | null | undefined;
 }) {
   const gt = useGT();
@@ -49,20 +57,28 @@ export function AssistantTurnMetrics({
         ? gt("Output tokens reported by the provider")
         : undefined;
 
-  const rate = recorded?.latestRequestRate;
+  const rate = estimatedRate === undefined ? recorded?.latestRequestRate : undefined;
+  const replyRate =
+    estimatedRate === undefined && !rate && !reported?.localCommand
+      ? estimateCodexReplyRate(reply)
+      : undefined;
+  const measuredRateDescription = !rate
+    ? undefined
+    : rate.timing === "stream"
+      ? gt("Latest measured request's output rate, excluding time to the first token")
+      : gt("Latest measured request's output rate, including time to the first token");
   const rateDescription =
     estimatedRate != null
       ? gt("Estimated from text received during the latest sample")
-      : estimatedRate === undefined && rate
-        ? rate.timing === "stream"
-          ? gt("Latest measured request's output rate, excluding time to the first token")
-          : gt("Latest measured request's output rate, including time to the first token")
-        : undefined;
-  const tokensPerSecond = estimatedRate === undefined ? rate?.tokensPerSecond : estimatedRate;
+      : replyRate !== undefined
+        ? gt("Estimated average output rate for this reply's text")
+        : measuredRateDescription;
+  const approximateRate = estimatedRate ?? replyRate;
+  const tokensPerSecond = approximateRate ?? rate?.tokensPerSecond;
   const rateLabel =
     tokensPerSecond == null
       ? UNAVAILABLE
-      : `${estimatedRate === undefined ? "" : "≈ "}${tokensPerSecond.toLocaleString(locale, {
+      : `${approximateRate === undefined ? "" : "≈ "}${tokensPerSecond.toLocaleString(locale, {
           maximumFractionDigits: 1,
         })}`;
 
@@ -94,6 +110,24 @@ function estimateOutputTokens(text: string): number {
   return cjk * 1.15 + (text.length - cjk) / 3.8;
 }
 
+function estimateCodexReplyRate(reply: OrchestrationV2TurnItem | undefined): number | undefined {
+  if (
+    reply?.type !== "assistant_message" ||
+    reply.nativeItemRef?.driver !== "codex" ||
+    reply.status !== "completed" ||
+    reply.delivery === "async" ||
+    reply.startedAt === null ||
+    reply.completedAt === null
+  ) {
+    return undefined;
+  }
+  const elapsedMs =
+    DateTime.toEpochMillis(reply.completedAt) - DateTime.toEpochMillis(reply.startedAt);
+  if (elapsedMs < MIN_REPLY_DURATION_MS) return undefined;
+  const tokens = estimateOutputTokens(reply.text);
+  return tokens >= MIN_REPLY_TOKENS ? (tokens * 1_000) / elapsedMs : undefined;
+}
+
 function StreamingAssistantTurnMetrics({
   threadRef,
   itemId,
@@ -106,36 +140,44 @@ function StreamingAssistantTurnMetrics({
   providerTurn: OrchestrationV2ProviderTurn | undefined;
 }) {
   const liveText = useAssistantMessageText(threadRef, itemId);
-  const readText = useEffectEvent(() => liveText ?? text);
+  const currentText = liveText ?? text;
+  const stream = useRef({
+    text: "",
+    tokens: 0,
+    samples: [] as Array<{ at: number; tokens: number }>,
+  });
   const [estimatedRate, setEstimatedRate] = useState<number | null>(null);
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- measure new stream text against the client clock at half-second intervals
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- timestamp each visible text update and expire the rate when output goes quiet
   useEffect(() => {
-    let previousText = readText();
-    let sampledAt = performance.now();
-    let previousSample: { tokens: number; elapsedMs: number } | undefined;
-    const timer = window.setInterval(() => {
-      const nextText = readText();
-      const now = performance.now();
-      const elapsedMs = now - sampledAt;
-      const tokens = nextText.startsWith(previousText)
-        ? estimateOutputTokens(nextText.slice(previousText.length))
-        : 0;
-      if (tokens > 0 && elapsedMs > 0) {
-        const rate =
-          ((tokens + (previousSample?.tokens ?? 0)) * 1_000) /
-          (elapsedMs + (previousSample?.elapsedMs ?? 0));
-        setEstimatedRate(Math.round(rate * 10) / 10);
-        previousSample = { tokens, elapsedMs };
-      } else {
-        setEstimatedRate(null);
-        previousSample = undefined;
-      }
-      previousText = nextText;
-      sampledAt = now;
-    }, RATE_SAMPLE_MS);
-    return () => window.clearInterval(timer);
-  }, []);
+    const state = stream.current;
+    const previousText = state.text;
+    if (previousText === currentText) return;
+    state.text = currentText;
+    const now = performance.now();
+    const last = state.samples.at(-1);
+    if (!currentText.startsWith(previousText) || (last && now - last.at >= RATE_IDLE_MS)) {
+      state.samples = [];
+      state.tokens = 0;
+      setEstimatedRate(null);
+    } else {
+      state.tokens += estimateOutputTokens(currentText.slice(previousText.length));
+    }
+
+    state.samples = state.samples.filter((sample) => now - sample.at <= RATE_WINDOW_MS);
+    if (state.samples.at(-1)?.at === now) state.samples.pop();
+    const first = state.samples[0];
+    if (first && now - first.at >= MIN_SAMPLE_MS) {
+      setEstimatedRate(Math.round(((state.tokens - first.tokens) * 1_000) / (now - first.at)));
+    }
+    state.samples.push({ at: now, tokens: state.tokens });
+    const timer = window.setTimeout(() => {
+      state.samples = [];
+      state.tokens = 0;
+      setEstimatedRate(null);
+    }, RATE_IDLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [currentText]);
 
   return <AssistantTurnMetrics providerTurn={providerTurn} estimatedRate={estimatedRate} />;
 }
@@ -161,7 +203,8 @@ export function LiveAssistantTurnMetrics({
       entry.message.role === "assistant" &&
       entry.message.runId === runId,
   );
-  const replyTurnId = reply?.projectedItem?.item.providerTurnId;
+  const replyItem = reply?.projectedItem?.item;
+  const replyTurnId = replyItem?.providerTurnId;
   let providerTurn =
     attemptId === null && replyTurnId != null ? providerTurnsById.get(replyTurnId) : undefined;
   if (attemptId !== null) {
@@ -195,7 +238,7 @@ export function LiveAssistantTurnMetrics({
               providerTurn={providerTurn}
             />
           ) : (
-            <AssistantTurnMetrics providerTurn={providerTurn} />
+            <AssistantTurnMetrics providerTurn={providerTurn} reply={replyItem} />
           )}
         </div>
       </div>

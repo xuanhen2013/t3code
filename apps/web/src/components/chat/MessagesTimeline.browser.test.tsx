@@ -2640,12 +2640,16 @@ it("updates the live rate at the turn's tail and switches to measured usage", as
   await expect.element(screen.getByText("– tok/s", { exact: true }).last()).toBeVisible();
   const firstChunk = `${initialReply}${"字".repeat(20)}`;
   await act(() => appAtomRegistry.set(streamedText, firstChunk));
+  await expect.element(screen.getByText(/^≈ .* tok\/s$/)).not.toBeInTheDocument();
   await act(() => vi.advanceTimersByTime(500));
-  await expect.element(screen.getByText("≈ 46 tok/s", { exact: true })).toBeVisible();
   const reply = `${firstChunk}${"字".repeat(10)}`;
   await act(() => appAtomRegistry.set(streamedText, reply));
+  await expect.element(screen.getByText("≈ 23 tok/s", { exact: true })).toBeVisible();
   await act(() => vi.advanceTimersByTime(500));
-  await expect.element(screen.getByText("≈ 34.5 tok/s", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("≈ 23 tok/s", { exact: true })).toBeVisible();
+  await act(() => vi.advanceTimersByTime(1_000));
+  await expect.element(screen.getByText("≈ 23 tok/s", { exact: true })).not.toBeInTheDocument();
+  await expect.element(screen.getByText("– tok/s", { exact: true }).last()).toBeVisible();
   await expect.element(screen.getByText("– tokens", { exact: true }).last()).toBeVisible();
 
   const first = replyItem(reply, false);
@@ -2671,6 +2675,7 @@ it("updates the live rate at the turn's tail and switches to measured usage", as
   await expect.element(screen.getByText("– tok/s", { exact: true }).last()).toBeVisible();
   await act(() => appAtomRegistry.set(streamedText, `More.${"a".repeat(38)}`));
   await act(() => vi.advanceTimersByTime(500));
+  await act(() => appAtomRegistry.set(streamedText, `More.${"a".repeat(76)}`));
   await expect.element(screen.getByText("≈ 20 tok/s", { exact: true })).toBeVisible();
   const finalUsage = {
     inputTokens: 2_000,
@@ -2691,6 +2696,58 @@ it("updates the live rate at the turn's tail and switches to measured usage", as
   const countRect = count.element().getBoundingClientRect();
   expect(countRect.left).toBeGreaterThan(copyRect.right);
   expect(countRect.top + countRect.height / 2).toBeCloseTo(copyRect.top + copyRect.height / 2);
+});
+
+it("estimates the speed of a completed Codex reply using the reply's own duration", async () => {
+  setup();
+  const fixture = makeStreamingTimelineFixture();
+  const assistant = fixture.visibleTurnItems[5]!;
+  if (assistant.item.type !== "assistant_message") throw new Error("Expected fixture reply");
+  const providerTurnId = ProviderTurnId.make("codex-metrics-turn");
+  const item = {
+    ...assistant.item,
+    providerTurnId,
+    nativeItemRef: {
+      driver: ProviderDriverKind.make("codex"),
+      nativeId: "codex-reply",
+      strength: "strong" as const,
+    },
+    text: "字".repeat(100),
+    streaming: false,
+    status: "completed" as const,
+    startedAt: DateTime.makeUnsafe(fixture.time(7)),
+    completedAt: DateTime.makeUnsafe(fixture.time(9)),
+  };
+  await using screen = await renderTimeline(
+    deriveTimelineEntriesFromVisibleTurnItems({
+      visibleTurnItems: [...fixture.visibleTurnItems.slice(0, 5), { ...assistant, item }],
+      optimisticMessages: [],
+    }),
+    {
+      providerTurns: [
+        {
+          id: providerTurnId,
+          providerThreadId: ProviderThreadId.make("codex-metrics-thread"),
+          nodeId: NodeId.make("codex-metrics-node"),
+          runAttemptId: null,
+          nativeTurnRef: null,
+          ordinal: 1,
+          status: "completed",
+          startedAt: DateTime.makeUnsafe(fixture.time(5)),
+          completedAt: item.completedAt,
+          turnTokenUsage: {
+            usageStatus: "complete",
+            usageScope: "main_agent",
+            hasSubagents: false,
+            inputTokens: 1_000,
+            outputTokens: 200,
+          },
+        },
+      ],
+    },
+  );
+  await expect.element(screen.getByText("1,200 tokens", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("≈ 57.5 tok/s", { exact: true })).toBeVisible();
 });
 
 it("renders automatic compaction as one live divider that finishes with its reason and token delta", async () => {

@@ -3237,10 +3237,7 @@
     {
       "t": "span",
       "i": 2,
-      "c": [
-        " ",
-        "en el ordenador que abrió esta página"
-      ]
+      "c": [" ", "en el ordenador que abrió esta página"]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3252,10 +3249,7 @@
     {
       "t": "span",
       "i": 2,
-      "c": [
-        " ",
-        "· quien lo ejecute obtiene este acceso"
-      ]
+      "c": [" ", "· quien lo ejecute obtiene este acceso"]
     }
   ],
   "c54cc9c75db9dc58": "Aprueba solo un inicio de sesión que acabes de iniciar.",
@@ -13057,5 +13051,6 @@
   "5df48397712063f5": "Tokens de entrada, de lectura de caché y de salida registrados hasta ahora en este turno",
   "48867bb2d5a7d870": "Velocidad de salida de la última solicitud medida, sin contar la espera hasta el primer token",
   "c2ebc08b959cf3e4": "Velocidad de salida de la última solicitud medida, contando la espera hasta el primer token",
-  "da7ccb37e764c426": "Estimación basada en el texto recibido durante el último intervalo"
+  "da7ccb37e764c426": "Estimación basada en el texto recibido durante el último intervalo",
+  "aeda9e3477dd5410": "Velocidad media de salida estimada para el texto de esta respuesta"
 }

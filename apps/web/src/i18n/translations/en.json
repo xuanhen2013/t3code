@@ -3237,10 +3237,7 @@
     {
       "t": "span",
       "i": 2,
-      "c": [
-        " ",
-        "on the computer that opened this page"
-      ]
+      "c": [" ", "on the computer that opened this page"]
     }
   ],
   "b2d53b4d1d48fbef": [
@@ -3252,10 +3249,7 @@
     {
       "t": "span",
       "i": 2,
-      "c": [
-        " ",
-        "· whoever runs it gets this access"
-      ]
+      "c": [" ", "· whoever runs it gets this access"]
     }
   ],
   "c54cc9c75db9dc58": "Only approve a sign-in you just started.",
@@ -13070,5 +13064,6 @@
   "5df48397712063f5": "Input, cached input, and output tokens recorded so far for this turn",
   "48867bb2d5a7d870": "Latest measured request's output rate, excluding time to the first token",
   "c2ebc08b959cf3e4": "Latest measured request's output rate, including time to the first token",
-  "da7ccb37e764c426": "Estimated from text received during the latest sample"
+  "da7ccb37e764c426": "Estimated from text received during the latest sample",
+  "aeda9e3477dd5410": "Estimated average output rate for this reply's text"
 }

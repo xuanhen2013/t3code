@@ -211,7 +211,8 @@ function AssistantMessageMeta({
 }) {
   const ctx = use(TimelineRowCtx);
   const m = useMessages();
-  const providerTurnId = projectedItem?.item.providerTurnId;
+  const reply = projectedItem?.item;
+  const providerTurnId = reply?.providerTurnId;
   const providerTurn =
     providerTurnId == null ? undefined : ctx.providerTurnsById.get(providerTurnId);
 
@@ -254,7 +255,7 @@ function AssistantMessageMeta({
           </SharedTooltipTrigger>
         )}
       </div>
-      <AssistantTurnMetrics providerTurn={providerTurn} />
+      <AssistantTurnMetrics providerTurn={providerTurn} reply={reply} />
     </div>
   );
 }
